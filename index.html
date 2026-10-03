@@ -31,8 +31,8 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;touch-
 button:focus-visible{outline:3px solid #fff;outline-offset:2px}
 
 /* page switch */
-.tabs{display:grid;grid-template-columns:1fr 1fr;background:var(--panel);border-radius:10px;padding:3px;border:1px solid var(--line)}
-.tabs button{height:36px;border-radius:8px;font-size:18px;font-weight:600;color:var(--muted)}
+.tabs{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;flex-shrink:0;background:var(--panel);border-radius:10px;padding:3px;border:1px solid var(--line)}
+.tabs button{flex:1 1 auto;min-width:0;padding:0 6px;height:36px;white-space:nowrap;border-radius:8px;font-size:16px;font-weight:600;color:var(--muted)}
 .tabs button[aria-pressed="true"]{background:var(--line);color:var(--text)}
 
 /* ---------- lookup ---------- */
@@ -100,6 +100,8 @@ h1{font-family:var(--serif);font-size:30px;line-height:1.1;font-weight:700}
 .seat{flex-direction:column;height:54px;font-size:18px;line-height:1.05}
 .seat small{font-size:12px;font-weight:500}
 .seat.out{opacity:.4}
+.seat.raiser{border-color:var(--raise);color:var(--text);box-shadow:inset 0 0 0 1.5px var(--raise)}
+.seat.raiser small{color:#ff9a9e}
 .seat.you{background:var(--text);color:var(--ink);border-color:var(--text)}
 .table{flex:1;min-height:150px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px}
 .cards{display:flex;gap:12px}
@@ -145,7 +147,10 @@ h1{font-family:var(--serif);font-size:30px;line-height:1.1;font-weight:700}
 <div class="app">
   <nav class="tabs" id="tabs">
     <button data-v="lookup" aria-pressed="true">Lookup</button>
-    <button data-v="train" aria-pressed="false">Train</button>
+    <button data-v="open" aria-pressed="false">Open</button>
+    <button data-v="vsUTG" aria-pressed="false">vs UTG</button>
+    <button data-v="vsCO" aria-pressed="false">vs CO</button>
+    <button data-v="vsSB" aria-pressed="false">vs SB</button>
   </nav>
 
   <!-- LOOKUP -->
@@ -162,8 +167,8 @@ h1{font-family:var(--serif);font-size:30px;line-height:1.1;font-weight:700}
   <section class="view" id="v-home" hidden>
     <div class="scroll">
       <div>
-        <h1>Opening range trainer</h1>
-        <p class="lede">Rounds of 20 hands, folded to you from every position. Most hands come from the edges of each range, where mistakes happen.</p>
+        <h1 id="h-title"></h1>
+        <p class="lede" id="h-lede"></p>
       </div>
       <div id="h-body"></div>
     </div>
@@ -220,16 +225,6 @@ function openPct(p){
   return t/1326*100;
 }
 
-/* ================= page switch ================= */
-let view='lookup';
-$('tabs').onclick=e=>{const b=e.target.closest('button');if(b)showTab(b.dataset.v)};
-function showTab(v){
-  view=v;
-  document.querySelectorAll('#tabs button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===v));
-  if(v==='lookup') show('v-lookup'); else if(!sess) {renderHome();show('v-home')} else show(sess.done?'v-done':'v-drill');
-}
-function show(id){['v-lookup','v-home','v-drill','v-done'].forEach(x=>$(x).hidden=x!==id)}
-
 /* ================= lookup ================= */
 let pos='BTN', picks=[];
 function nextPos(p){const i=POS.indexOf(p);return POS[(i-1+POS.length)%POS.length]}
@@ -272,19 +267,70 @@ function renderLookup(){
 }
 
 /* ================= trainer ================= */
+const VS_SB={"BB":{"AA":[100,0],"AKs":[100,0],"AQs":[100,0],"AJs":[100,0],"ATs":[3,97],"A9s":[0,100],"A8s":[0,100],"A7s":[0,100],"A6s":[9,91],"A5s":[100,0],"A4s":[84,16],"A3s":[22,78],"A2s":[50,50],"AKo":[100,0],"KK":[100,0],"KQs":[100,0],"KJs":[100,0],"KTs":[18,82],"K9s":[0,100],"K8s":[0,100],"K7s":[0,100],"K6s":[29,71],"K5s":[16,84],"K4s":[7,93],"K3s":[22,78],"K2s":[6,94],"AQo":[100,0],"KQo":[17,83],"QQ":[100,0],"QJs":[80,20],"QTs":[16,84],"Q9s":[0,100],"Q8s":[0,100],"Q7s":[0,100],"Q6s":[0,100],"Q5s":[0,100],"Q4s":[0,100],"Q3s":[64,36],"Q2s":[100,0],"AJo":[4,96],"KJo":[0,100],"QJo":[0,100],"JJ":[100,0],"JTs":[46,54],"J9s":[13,87],"J8s":[11,89],"J7s":[0,100],"J6s":[59,41],"J5s":[78,22],"J4s":[67,6],"J3s":[39,0],"J2s":[38,0],"ATo":[0,100],"KTo":[25,75],"QTo":[32,68],"JTo":[22,78],"TT":[100,0],"T9s":[85,15],"T8s":[24,76],"T7s":[7,93],"T6s":[46,54],"A9o":[0,100],"K9o":[68,32],"Q9o":[57,0],"J9o":[34,14],"T9o":[11,77],"99":[52,48],"98s":[21,79],"97s":[20,80],"96s":[0,100],"A8o":[0,100],"K8o":[67,0],"J8o":[8,0],"88":[6,94],"87s":[28,72],"86s":[3,97],"85s":[0,100],"A7o":[78,22],"K7o":[21,0],"77":[0,100],"76s":[33,67],"75s":[0,100],"74s":[0,77],"A6o":[96,0],"66":[16,84],"65s":[54,46],"64s":[0,100],"A5o":[22,78],"K5o":[23,0],"55":[3,97],"54s":[56,44],"53s":[0,100],"A4o":[89,11],"44":[13,87],"43s":[0,100],"A3o":[90,0],"33":[3,97],"A2o":[60,0],"22":[0,100]}};
+const VS_CO={"BTN":{"AA":[100,0],"AKs":[100,0],"AQs":[90,10],"AJs":[27,73],"ATs":[17,83],"A9s":[71,29],"A8s":[62,15],"A7s":[78,0],"A6s":[100,0],"A5s":[80,20],"A4s":[100,0],"A3s":[100,0],"A2s":[100,0],"AKo":[100,0],"KK":[100,0],"KQs":[49,51],"KJs":[53,47],"KTs":[45,55],"K9s":[57,0],"K7s":[18,0],"K6s":[46,0],"K5s":[41,0],"K4s":[8,0],"AQo":[74,26],"KQo":[100,0],"QQ":[100,0],"QJs":[67,33],"QTs":[75,25],"AJo":[100,0],"KJo":[100,0],"JJ":[97,3],"JTs":[20,34],"ATo":[9,0],"KTo":[13,0],"TT":[55,45],"99":[26,60],"88":[13,47],"77":[15,32],"76s":[6,0],"66":[30,16],"65s":[11,9],"55":[0,6],"54s":[11,14],"44":[0,3]},"BB":{"AA":[100,0],"AKs":[100,0],"AQs":[23,77],"AJs":[0,100],"ATs":[0,100],"A9s":[0,100],"A8s":[0,100],"A7s":[0,100],"A6s":[0,100],"A5s":[22,78],"A4s":[0,100],"A3s":[0,100],"A2s":[19,81],"AKo":[100,0],"KK":[100,0],"KQs":[0,100],"KJs":[0,100],"KTs":[0,100],"K9s":[0,100],"K8s":[0,100],"K7s":[0,100],"K6s":[34,66],"K5s":[15,85],"K4s":[38,62],"K3s":[100,0],"K2s":[100,0],"AQo":[0,100],"KQo":[37,63],"QQ":[100,0],"QJs":[0,100],"QTs":[0,100],"Q9s":[0,100],"Q8s":[25,75],"Q7s":[32,49],"Q6s":[100,0],"Q4s":[26,8],"Q3s":[8,0],"Q2s":[42,0],"AJo":[10,90],"KJo":[52,48],"QJo":[73,27],"JJ":[100,0],"JTs":[0,100],"J9s":[0,100],"J8s":[0,100],"J7s":[46,4],"ATo":[0,100],"KTo":[3,97],"QTo":[0,66],"JTo":[25,57],"TT":[0,100],"T9s":[0,100],"T8s":[0,100],"T7s":[0,86],"A9o":[18,82],"99":[0,100],"98s":[0,100],"97s":[0,100],"96s":[0,100],"A8o":[6,0],"88":[0,100],"87s":[0,100],"86s":[0,100],"85s":[0,48],"A7o":[14,0],"77":[0,100],"76s":[0,100],"75s":[0,100],"A6o":[10,0],"66":[31,69],"65s":[0,100],"64s":[0,100],"A5o":[61,0],"55":[12,88],"54s":[0,100],"53s":[0,100],"A4o":[38,0],"44":[28,72],"43s":[0,100],"A3o":[32,0],"33":[5,95],"22":[0,100]}};
+const VS_UTG={"HJ":{"AA":[100,0],"AKs":[100,0],"AQs":[59,41],"AJs":[49,50],"ATs":[47,30],"A9s":[52,4],"A8s":[14,0],"A7s":[46,0],"A6s":[41,0],"A5s":[67,9],"A4s":[100,0],"A3s":[68,0],"AKo":[94,6],"KK":[100,0],"KQs":[60,40],"KJs":[87,13],"KTs":[56,9],"K9s":[28,0],"K8s":[12,0],"K7s":[16,0],"K6s":[26,0],"K5s":[54,0],"K4s":[8,0],"AQo":[82,4],"KQo":[78,0],"QQ":[82,18],"JJ":[55,45],"TT":[26,25],"99":[7,23],"88":[11,23],"87s":[3,0],"77":[4,5],"76s":[7,3],"66":[0,6],"65s":[27,8],"54s":[9,17]},"BTN":{"AA":[100,0],"AKs":[100,0],"AQs":[55,45],"AJs":[0,100],"ATs":[26,74],"A9s":[59,21],"A8s":[39,0],"A7s":[51,0],"A6s":[60,0],"A5s":[64,36],"A4s":[100,0],"A3s":[100,0],"A2s":[19,0],"AKo":[100,0],"KK":[100,0],"KQs":[18,82],"KJs":[50,50],"KTs":[64,36],"K9s":[26,0],"K8s":[17,0],"K7s":[23,0],"K6s":[15,0],"K5s":[52,0],"AQo":[68,32],"KQo":[100,0],"QQ":[88,12],"QJs":[87,13],"QTs":[0,7],"JJ":[20,80],"JTs":[0,24],"TT":[39,61],"99":[32,46],"88":[22,43],"77":[5,28],"76s":[6,12],"66":[9,19],"65s":[24,22],"55":[0,11],"54s":[15,29],"44":[0,4]},"BB":{"AA":[100,0],"AKs":[100,0],"AQs":[0,100],"AJs":[0,100],"ATs":[0,100],"A9s":[0,100],"A8s":[0,100],"A7s":[22,78],"A6s":[61,39],"A5s":[3,97],"A4s":[67,33],"A3s":[55,45],"A2s":[71,29],"AKo":[75,25],"KK":[100,0],"KQs":[0,100],"KJs":[0,100],"KTs":[0,100],"K9s":[18,82],"K8s":[35,65],"K7s":[50,50],"K6s":[80,20],"K5s":[73,0],"K4s":[22,0],"K3s":[3,0],"K2s":[40,0],"AQo":[0,100],"KQo":[22,78],"QQ":[24,76],"QJs":[19,81],"QTs":[0,100],"Q9s":[49,51],"Q8s":[18,0],"AJo":[0,100],"KJo":[0,57],"QJo":[0,14],"JJ":[0,100],"JTs":[0,100],"J9s":[0,100],"ATo":[25,59],"TT":[0,100],"T9s":[0,100],"T8s":[0,100],"T7s":[0,7],"99":[0,100],"98s":[0,100],"97s":[0,100],"88":[0,100],"87s":[21,79],"86s":[0,100],"77":[4,96],"76s":[18,82],"75s":[6,94],"66":[8,92],"65s":[0,100],"64s":[0,100],"A5o":[9,0],"55":[0,100],"54s":[0,100],"53s":[17,83],"44":[0,100],"43s":[27,70],"33":[0,100],"22":[0,100]}};
+function freqIn(D,p,h){
+  const v=D[p]&&D[p][h];
+  if(v===undefined) return {r:0,c:0,f:100};
+  if(Array.isArray(v)) return {r:v[0],c:v[1],f:Math.max(0,100-v[0]-v[1])};
+  return {r:v,c:0,f:100-v};
+}
+// Facing an open: fold, call or 3-bet. Defaults: 2.5bb open, 3-bet to 8bb in position or 13.5bb from the BB
+function vsSet(raiser,positions,D,key,seats,open='2.5bb',size=p=>p==='BB'?'13.5bb':'8bb'){
+  const ri=POS.indexOf(raiser);
+  return {
+    title:`Facing a ${raiser} open`, key, positions, open,
+    lede:`${raiser} opens to ${open} and the action is on you in ${seats}. Fold, call or 3-bet, 20 hands a round.`,
+    f:(p,h)=>freqIn(D,p,h), words:{r:'3-bet',c:'call'},
+    options:p=>[['f','Fold',''],['c','Call',''],['r','3-bet','to '+size(p)]],
+    act:(p,a)=>a==='f'?'Fold':a==='c'?'Call':'3-bet to '+size(p),
+    seat:(i,yi)=>i===ri?'raise':i<yi?'fold':i===yi?'you':'',
+    caption:p=>`${raiser} opens ${open}. You're on the ${p}.`
+  };
+}
+// Each training tab is one drill set
+const SETS={
+  open:{
+    title:'Opening ranges', key:'opener-history', positions:RFI,
+    lede:'Rounds of 20 hands, folded to you from every position. Most hands come from the edges of each range, where mistakes happen.',
+    f:(p,h)=>freq(p,h), words:{r:'raise',c:'limp'},
+    options:p=>p==='SB'?[['f','Fold',''],['c','Limp',''],['r','Raise','3.5bb']]:[['f','Fold',''],['r','Raise','2.5bb'],['x','Raise','3.5bb']],
+    act:(p,a)=>a==='f'?'Fold':a==='c'?'Limp':a==='x'?'Raise 3.5bb':'Raise '+(p==='SB'?'3.5bb':'2.5bb'),
+    seat:(i,yi)=>i<yi?'fold':i===yi?'you':'',
+    caption:p=>`Folded to you on the ${p}`,
+    sizeTip:p=>`Open 2.5bb from the ${p}.`
+  },
+  vsUTG:vsSet('UTG',['HJ','BTN','BB'],VS_UTG,'vsutg-history','the HJ, BTN or BB'),
+  vsCO:vsSet('CO',['BTN','BB'],VS_CO,'vsco-history','the BTN or BB'),
+  vsSB:vsSet('SB',['BB'],VS_SB,'vssb-history','the BB','3.5bb',()=>'10.5bb')
+};
+let mode='open';
+const S=()=>SETS[mode];
+
+function mixTextW(f,w){
+  const p=[]; if(f.r) p.push(f.r+'% '+w.r); if(f.c) p.push(f.c+'% '+w.c); if(f.f&&(f.r||f.c)) p.push(f.f+'% fold');
+  return p.join(', ');
+}
+function mixHTMLW(f,w){
+  return `<div class="mix"><div class="bar"><i class="r" style="width:${f.r}%"></i><i class="c" style="width:${f.c}%"></i></div>${mixTextW(f,w)}</div>`;
+}
+
 // Hands near each range boundary: mixed hands, or hands whose grid neighbour has a different answer
-const EDGE={};
-RFI.forEach(p=>{
-  EDGE[p]=[];
-  for(let i=0;i<13;i++)for(let j=0;j<13;j++){
-    const h=nameAt(i,j), f=freq(p,h), a=primary(f);
-    let edge=Math.max(f.r,f.c,f.f)<97;
-    [[1,0],[-1,0],[0,1],[0,-1]].forEach(([di,dj])=>{
-      const x=i+di,y=j+dj; if(x<0||y<0||x>12||y>12) return;
-      if(primary(freq(p,nameAt(x,y)))!==a) edge=true;
-    });
-    if(edge) EDGE[p].push(h);
-  }
+Object.values(SETS).forEach(set=>{
+  set.edge={};
+  set.positions.forEach(p=>{
+    set.edge[p]=[];
+    for(let i=0;i<13;i++)for(let j=0;j<13;j++){
+      const h=nameAt(i,j), f=set.f(p,h), a=primary(f);
+      let edge=Math.max(f.r,f.c,f.f)<97;
+      [[1,0],[-1,0],[0,1],[0,-1]].forEach(([di,dj])=>{
+        const x=i+di,y=j+dj; if(x<0||y<0||x>12||y>12) return;
+        if(primary(set.f(p,nameAt(x,y)))!==a) edge=true;
+      });
+      if(edge) set.edge[p].push(h);
+    }
+  });
 });
 function randomCombo(){
   const a=rnd(52); let b; do{b=rnd(52)}while(b===a);
@@ -299,38 +345,54 @@ function comboFor(name){
   return {name,cards:[{r:name[0],s:s1},{r:name[1],s:s2}]};
 }
 function deal(){
-  const p=RFI[rnd(RFI.length)];
-  const c=Math.random()<0.4?randomCombo():comboFor(EDGE[p][rnd(EDGE[p].length)]);
+  const set=S(), p=set.positions[rnd(set.positions.length)];
+  const c=Math.random()<0.4?randomCombo():comboFor(set.edge[p][rnd(set.edge[p].length)]);
   return {pos:p,...c};
 }
-function options(p){
-  return p==='SB'
-    ?[['f','Fold',''],['c','Limp',''],['r','Raise','3.5bb']]
-    :[['f','Fold',''],['r','Raise','2.5bb'],['x','Raise','3.5bb']];
-}
-function actName(p,a){return a==='f'?'Fold':a==='c'?'Limp':a==='x'?'Raise 3.5bb':'Raise '+(p==='SB'?'3.5bb':'2.5bb')}
 // An action counts as correct if the solver takes it at least 25% of the time
 function okActions(f){return ['r','c','f'].filter(a=>f[a]>=25)}
 
-let hist=[], sess=null, cur=null, answered=false, timer=null, resetArmed=false;
-// Saves on the device when opened from a website or the Home Screen; falls back to Claude's storage inside Claude
+/* ---- saved history, one list per tab ---- */
 const LS=(()=>{try{const s=window['local'+'Storage'];s.setItem('_t','1');s.removeItem('_t');return s}catch(e){return null}})();
+const hists={}, sessions={};
+Object.keys(SETS).forEach(m=>hists[m]=[]);
 async function loadHist(){
-  try{
-    if(LS){hist=JSON.parse(LS.getItem(KEY)||'[]')}
-    else if(window.storage){const r=await window.storage.get(KEY,false); if(r&&r.value) hist=JSON.parse(r.value)}
-  }catch(e){hist=[]}
-  if(view==='train'&&!sess) renderHome();
+  for(const m of Object.keys(SETS)){
+    const key=SETS[m].key;
+    try{
+      if(LS) hists[m]=JSON.parse(LS.getItem(key)||'[]');
+      else if(window.storage){const r=await window.storage.get(key,false); if(r&&r.value) hists[m]=JSON.parse(r.value)}
+    }catch(e){hists[m]=[]}
+  }
+  if(view!=='lookup'&&!sessions[mode]) renderHome();
 }
-async function saveHist(){
-  const v=JSON.stringify(hist.slice(-300));
-  try{ if(LS) LS.setItem(KEY,v); else if(window.storage) await window.storage.set(KEY,v,false) }catch(e){}
+async function saveHist(m){
+  const v=JSON.stringify(hists[m].slice(-300)), key=SETS[m].key;
+  try{ if(LS) LS.setItem(key,v); else if(window.storage) await window.storage.set(key,v,false) }catch(e){}
 }
+function storeNote(){return (LS||window.storage)?'':'<p class="empty">Scores are kept while this page stays open. Add the app to your Home Screen from its web address to keep them.</p>'}
 
+/* ---- page switch ---- */
+let view='lookup', timer=null, resetArmed=false;
+$('tabs').onclick=e=>{const b=e.target.closest('button');if(b)showTab(b.dataset.v)};
+function showTab(v){
+  clearTimeout(timer);
+  view=v;
+  document.querySelectorAll('#tabs button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===v));
+  if(v==='lookup'){show('v-lookup');return}
+  mode=v; resetArmed=false;
+  const sess=sessions[mode];
+  if(!sess){renderHome();show('v-home')}
+  else if(sess.done){$('done-body').innerHTML=sess.doneHTML;show('v-done')}
+  else{ if(sess.answered){sess.i++;sess.cur=null} drawDeal(); show('v-drill') }
+}
+function show(id){['v-lookup','v-home','v-drill','v-done'].forEach(x=>$(x).hidden=x!==id)}
+
+/* ---- home ---- */
 function renderHome(){
-  const n=hist.length, body=$('h-body');
+  const set=S(), hist=hists[mode], n=hist.length, body=$('h-body');
+  $('h-title').textContent=set.title; $('h-lede').textContent=set.lede;
   if(!n){body.innerHTML='<div class="box empty">No rounds yet. Your scores will chart here after your first 20 hands.</div>'+storeNote();return}
-  const pct=s=>Math.round(s.s/s.n*100);
   const last=hist[n-1], l5=hist.slice(-5), avg5=Math.round(l5.reduce((a,s)=>a+s.s/s.n,0)/l5.length*100);
   const best=hist.reduce((m,s)=>Math.max(m,s.s),0);
   let html=`<div class="stats">
@@ -339,9 +401,9 @@ function renderHome(){
     <div class="stat"><b>${avg5}%</b><small>Last 5 avg</small></div>
     <div class="stat"><b>${best}</b><small>Best</small></div></div>`;
   html+=`<div class="box"><h2>Score per round${n>30?', last 30':''}</h2>${chart(hist.slice(-30))}</div>`;
-  const agg={}; RFI.forEach(p=>agg[p]=[0,0]);
-  hist.forEach(s=>RFI.forEach(p=>{if(s.pos&&s.pos[p]){agg[p][0]+=s.pos[p][0];agg[p][1]+=s.pos[p][1]}}));
-  html+='<div class="box"><h2>Accuracy by position, all rounds</h2>'+RFI.map(p=>{
+  const agg={}; set.positions.forEach(p=>agg[p]=[0,0]);
+  hist.forEach(s=>set.positions.forEach(p=>{if(s.pos&&s.pos[p]){agg[p][0]+=s.pos[p][0];agg[p][1]+=s.pos[p][1]}}));
+  html+='<div class="box"><h2>Accuracy by position, all rounds</h2>'+set.positions.map(p=>{
     const [c,t]=agg[p], v=t?Math.round(c/t*100):0;
     return `<div class="acc"><b>${p}</b><div class="track"><i style="width:${v}%"></i></div><span>${t?v+'%':'none'}</span></div>`;
   }).join('')+'</div>';
@@ -349,10 +411,9 @@ function renderHome(){
   body.innerHTML=html;
   $('reset').onclick=async()=>{
     if(!resetArmed){resetArmed=true;renderHome();setTimeout(()=>{resetArmed=false;if(!$('v-home').hidden)renderHome()},4000);return}
-    resetArmed=false; hist=[]; await saveHist(); renderHome();
+    resetArmed=false; hists[mode]=[]; await saveHist(mode); renderHome();
   };
 }
-function storeNote(){return (LS||window.storage)?'':'<p class="empty">Scores are kept while this page stays open. Add the app to your Home Screen from its web address to keep them.</p>'}
 function chart(list){
   const W=300,H=120,pl=22,pb=14,n=list.length, bw=(W-pl)/Math.max(n,10);
   const y=v=>H-pb-(v/ROUND)*(H-pb-6);
@@ -360,39 +421,48 @@ function chart(list){
   [0,10,20].forEach(v=>{s+=`<line x1="${pl}" x2="${W}" y1="${y(v)}" y2="${y(v)}" stroke="#2c3a49"/><text x="${pl-5}" y="${y(v)+4}" fill="#8797a7" font-size="11" text-anchor="end">${v}</text>`});
   list.forEach((r,i)=>{const v=r.s/r.n*ROUND;
     s+=`<rect x="${pl+i*bw+bw*.15}" y="${y(v)}" width="${bw*.7}" height="${y(0)-y(v)}" rx="2" fill="${i===n-1?'#ffd75e':'#b8a25a'}"/>`});
-  if(n>=3){ // 3-round moving average
+  if(n>=3){
     const pts=list.map((r,i)=>{const w=list.slice(Math.max(0,i-2),i+1);const a=w.reduce((t,x)=>t+x.s/x.n,0)/w.length*ROUND;return `${pl+i*bw+bw/2},${y(a)}`});
     s+=`<polyline points="${pts.join(' ')}" fill="none" stroke="#e9eef3" stroke-width="2" stroke-linejoin="round"/>`;
   }
   return s+'</svg><p class="empty" style="font-size:13px;margin-top:4px">Bars are rounds, the line is your 3-round average.</p>';
 }
 
+/* ---- drill ---- */
 function startSession(){
   clearTimeout(timer);
-  sess={i:0,score:0,res:[],done:false};
-  $('pips').innerHTML='<i></i>'.repeat(ROUND);
-  show('v-drill'); nextDeal();
+  sessions[mode]={i:0,score:0,res:[],done:false,cur:null,answered:false};
+  show('v-drill'); drawDeal();
 }
-function nextDeal(){
+function drawDeal(){
   clearTimeout(timer);
+  const sess=sessions[mode], set=S();
   if(sess.i>=ROUND){finish();return}
-  cur=deal(); answered=false;
+  if(!sess.cur){sess.cur=deal();sess.answered=false}
+  const cur=sess.cur;
   $('d-count').textContent=`Hand ${sess.i+1} of ${ROUND}`;
   $('d-score').textContent=sess.score;
-  [...$('pips').children].forEach((p,i)=>{p.className=i<sess.res.length?(sess.res[i].ok?'ok':'bad'):i===sess.i?'cur':''});
+  $('pips').innerHTML=Array.from({length:ROUND},(_,i)=>`<i class="${i<sess.res.length?(sess.res[i].ok?'ok':'bad'):i===sess.i?'cur':''}"></i>`).join('');
   const yi=POS.indexOf(cur.pos);
-  $('seats').innerHTML=POS.map((p,i)=>i<yi?`<div class="seat out">${p}<small>fold</small></div>`:i===yi?`<div class="seat you">${p}<small>you</small></div>`:`<div class="seat">${p}</div>`).join('');
+  $('seats').innerHTML=POS.map((p,i)=>{
+    const st=set.seat(i,yi);
+    return st==='fold'?`<div class="seat out">${p}<small>fold</small></div>`
+      :st==='you'?`<div class="seat you">${p}<small>you</small></div>`
+      :st==='raise'?`<div class="seat raiser">${p}<small>${set.open}</small></div>`
+      :`<div class="seat">${p}</div>`;
+  }).join('');
   const cards=$('cards'); cards.classList.remove('deal'); void cards.offsetWidth; cards.classList.add('deal');
   cards.innerHTML=cur.cards.map(c=>`<div class="pc ${c.s}" aria-label="${c.r} of ${c.s}"><span class="rk">${c.r==='T'?'10':c.r}</span><span class="su">${SYM[c.s]}</span></div>`).join('');
-  $('caption').textContent=`Folded to you on the ${cur.pos}`;
+  $('caption').textContent=set.caption(cur.pos);
   $('fb').className='fb'; $('fb').innerHTML='';
-  $('opts').innerHTML=options(cur.pos).map(([k,a,b],i)=>`<button data-k="${k}">${a}${b?`<small>${b}</small>`:''}</button>`).join('');
+  $('opts').innerHTML=set.options(cur.pos).map(([k,a,b])=>`<button data-k="${k}">${a}${b?`<small>${b}</small>`:''}</button>`).join('');
   $('d-next').hidden=true;
 }
 $('opts').onpointerdown=e=>{const b=e.target.closest('button');if(b){e.preventDefault();answer(b.dataset.k)}};
 function answer(k){
-  if(answered) return; answered=true;
-  const f=freq(cur.pos,cur.name), good=okActions(f), ok=good.includes(k);
+  const sess=sessions[mode], set=S();
+  if(!sess||sess.answered) return; sess.answered=true;
+  const cur=sess.cur, f=set.f(cur.pos,cur.name), good=okActions(f), ok=good.includes(k);
   sess.res.push({pos:cur.pos,name:cur.name,pick:k,ok,best:primary(f),f});
   if(ok) sess.score++;
   document.querySelectorAll('#opts button').forEach(b=>{
@@ -404,36 +474,41 @@ function answer(k){
   $('pips').children[sess.i].className=ok?'ok':'bad';
   const mixed=Math.max(f.r,f.c,f.f)<97;
   let msg;
-  if(ok) msg=`<strong>Correct</strong>${mixed?mixHTML(f):''}`;
-  else if(k==='x'&&good.includes('r')) msg=`<strong>Right to raise, wrong size</strong><div>Open 2.5bb from the ${cur.pos}.</div>`;
-  else msg=`<strong>${actName(cur.pos,primary(f))}</strong>${mixed?mixHTML(f):''}`;
+  if(ok) msg=`<strong>Correct</strong>${mixed?mixHTMLW(f,set.words):''}`;
+  else if(k==='x'&&good.includes('r')) msg=`<strong>Right to raise, wrong size</strong><div>${set.sizeTip(cur.pos)}</div>`;
+  else msg=`<strong>${set.act(cur.pos,primary(f))}</strong>${mixed?mixHTMLW(f,set.words):''}`;
   $('fb').className='fb '+(ok?'ok':'bad'); $('fb').innerHTML=msg;
   $('d-next').hidden=false; $('d-next').textContent=sess.i===ROUND-1?'See results':'Next hand';
   if(ok) timer=setTimeout(advance, mixed?1400:700);
 }
-function advance(){ if(!answered) return; sess.i++; nextDeal() }
+function advance(){
+  const sess=sessions[mode];
+  if(!sess||!sess.answered) return;
+  sess.i++; sess.cur=null; drawDeal();
+}
 $('d-next').onpointerdown=e=>{e.preventDefault();advance()};
 
 function finish(){
+  const sess=sessions[mode], set=S(), hist=hists[mode];
   const byPos={}; sess.res.forEach(r=>{byPos[r.pos]=byPos[r.pos]||[0,0];byPos[r.pos][1]++;if(r.ok)byPos[r.pos][0]++});
   const prev=hist[hist.length-1];
-  hist.push({t:Date.now(),s:sess.score,n:ROUND,pos:byPos}); saveHist();
+  hist.push({t:Date.now(),s:sess.score,n:ROUND,pos:byPos}); saveHist(mode);
   sess.done=true;
-  let cmp='';
+  let cmp='First round logged';
   if(prev){const d=sess.score-prev.s; cmp=d>0?`Up ${d} on your last round`:d<0?`Down ${-d} on your last round`:'Same as your last round'}
-  else cmp='First round logged';
   const misses=sess.res.filter(r=>!r.ok);
-  let html=`<div class="score"><b>${sess.score}<small> / ${ROUND}</small></b><p>${cmp}</p></div>`;
+  let html=`<div class="score"><b>${sess.score}<small> / ${ROUND}</small></b><p>${set.title}. ${cmp}</p></div>`;
   html+='<div class="box"><h2>'+(misses.length?`Missed hands (${misses.length})`:'No misses this round')+'</h2>'+misses.map(r=>{
     const mixed=Math.max(r.f.r,r.f.c,r.f.f)<97;
-    return `<div class="miss"><span>${r.pos}</span><span class="h">${r.name}</span><span class="d">You: ${actName(r.pos,r.pick)}<br>Answer: <b>${actName(r.pos,r.best)}</b>${mixed?' ('+mixText(r.f)+')':''}</span></div>`;
+    return `<div class="miss"><span>${r.pos}</span><span class="h">${r.name}</span><span class="d">You: ${set.act(r.pos,r.pick)}<br>Answer: <b>${set.act(r.pos,r.best)}</b>${mixed?' ('+mixTextW(r.f,set.words)+')':''}</span></div>`;
   }).join('')+'</div>';
+  sess.doneHTML=html;
   $('done-body').innerHTML=html;
   show('v-done');
 }
 $('start').onclick=startSession;
 $('again').onclick=startSession;
-$('to-home').onclick=()=>{sess=null;renderHome();show('v-home')};
+$('to-home').onclick=()=>{sessions[mode]=null;renderHome();show('v-home')};
 
 /* ================= keyboard ================= */
 document.addEventListener('keydown',e=>{
@@ -445,12 +520,14 @@ document.addEventListener('keydown',e=>{
     if(e.key==='ArrowRight'||e.key==='ArrowLeft'){const i=POS.indexOf(pos),d=e.key==='ArrowRight'?1:-1;setPos(POS[(i+d+POS.length)%POS.length]);return}
     if(e.key==='Escape'||e.key==='Backspace'||e.key===' '){e.preventDefault();picks=[];renderLookup()}
   } else if(!$('v-drill').hidden){
-    if(!answered&&['1','2','3'].includes(e.key)){answer(options(cur.pos)[+e.key-1][0]);return}
-    if(answered&&(e.key==='Enter'||e.key===' ')){e.preventDefault();advance()}
+    const sess=sessions[mode];
+    if(sess&&!sess.answered&&['1','2','3'].includes(e.key)){answer(S().options(sess.cur.pos)[+e.key-1][0]);return}
+    if(sess&&sess.answered&&(e.key==='Enter'||e.key===' ')){e.preventDefault();advance()}
   } else if(e.key==='Enter'&&(!$('v-home').hidden||!$('v-done').hidden)){e.preventDefault();startSession()}
 });
 
 renderLookup(); loadHist();
 </script>
+
 </body>
 </html>
