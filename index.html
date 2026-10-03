@@ -81,6 +81,36 @@ button:focus-visible{outline:3px solid #fff;outline-offset:2px}
 .big b{background:var(--ink);color:var(--text);border-radius:7px;padding:2px 10px}
 .foot{font-size:13px;color:var(--muted);text-align:center}
 
+/* ---------- leaks ---------- */
+.focus{border-color:var(--gold)}
+.focus h2{color:var(--gold)}
+.f-spot{font-family:var(--serif);font-size:30px;font-weight:700;line-height:1.1}
+.focus p{font-size:16px;line-height:1.4;color:var(--muted);margin:6px 0 10px}
+.focus p b{color:var(--text)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.chip{background:var(--card);color:var(--card-ink);font-family:var(--serif);font-weight:700;font-size:18px;border-radius:8px;padding:6px 10px}
+.f-btn{width:100%;height:52px;font-size:20px}
+.lt{margin:10px 0}
+.lt-top{display:flex;justify-content:space-between;font-size:17px}
+.lt-top span{color:var(--muted)}
+.lt .track,.lrow .track,.acc .track{height:10px;border-radius:5px;background:var(--line);overflow:hidden;display:block}
+.lt .track{margin:5px 0}
+.lt .track i,.lrow .track i{display:block;height:100%;background:var(--gold)}
+.lt small{color:var(--muted);font-size:14px}
+.lrow{display:grid;grid-template-columns:1fr 70px 64px;gap:10px;align-items:center;width:100%;text-align:left;padding:8px 0;border-top:1px solid var(--line);font-size:17px}
+.lrow:first-of-type{border-top:0}
+.lrow small{display:block;font-size:13px;color:var(--muted)}
+.l-name{font-weight:700}
+.l-num{text-align:right;font-weight:700}
+.mrow{width:100%;text-align:left;grid-template-columns:82px 50px 1fr}
+.mrow>span:first-child{font-size:15px;line-height:1.25}
+.acc.wide{grid-template-columns:150px 1fr 44px}
+.acc.wide b{font-size:15px}
+
+.drillbox p{font-size:16px;line-height:1.4;color:var(--muted);margin-bottom:10px}
+.drillbox .dstat b{color:var(--text)}
+.drillbox .big{width:100%;height:56px}
+
 /* ---------- charts ---------- */
 .grid{display:grid;grid-template-columns:repeat(13,1fr);gap:2px;flex-shrink:0}
 .grid button{aspect-ratio:1/.86;border-radius:3px;padding:0;font-family:var(--cond);font-size:clamp(9px,2.6vw,14px);font-weight:700;
@@ -197,6 +227,11 @@ h1{font-family:var(--serif);font-size:30px;line-height:1.1;font-weight:700}
     <div class="result" id="r-result" aria-live="polite"></div>
     <div class="pad" id="rpad" role="group" aria-label="Card ranks"></div>
     <button class="big" id="r-next"></button>
+  </section>
+
+  <!-- TRAIN: leaks -->
+  <section class="view" id="v-leaks" hidden>
+    <div class="scroll" id="leaks-body"></div>
   </section>
 
   <!-- CHARTS -->
@@ -366,7 +401,7 @@ function freqIn(D,p,h){
 function vsSet(raiser,positions,D,key,seats,open='2.5bb',size=p=>p==='BB'?'13.5bb':'8bb'){
   const ri=POS.indexOf(raiser);
   return {
-    title:`Facing a ${raiser} open`, key, positions, open,
+    title:`Facing a ${raiser} open`, key, positions, open, raiser,
     lede:`${raiser} opens to ${open} and the action is on you in ${seats}. Fold, call or 3-bet, 20 hands a round.`,
     f:(p,h)=>freqIn(D,p,h), words:{r:'3-bet',c:'call'},
     options:p=>[['f','Fold',''],['c','Call',''],['r','3-bet','to '+size(p)]],
@@ -441,25 +476,27 @@ function okActions(f){return ['r','c','f'].filter(a=>f[a]>=25)}
 /* ---- saved history, one list per tab ---- */
 const LS=(()=>{try{const s=window['local'+'Storage'];s.setItem('_t','1');s.removeItem('_t');return s}catch(e){return null}})();
 const hists={}, sessions={};
-Object.keys(SETS).forEach(m=>hists[m]=[]);
+Object.keys(SETS).forEach(m=>hists[m]=[]); hists.drill=[];
+const histKey=m=>m==='drill'?DRILL_KEY:SETS[m].key;
 async function loadHist(){
-  for(const m of Object.keys(SETS)){
-    const key=SETS[m].key;
+  for(const m of [...Object.keys(SETS),'drill']){
+    const key=histKey(m);
     try{
       if(LS) hists[m]=JSON.parse(LS.getItem(key)||'[]');
       else if(window.storage){const r=await window.storage.get(key,false); if(r&&r.value) hists[m]=JSON.parse(r.value)}
     }catch(e){hists[m]=[]}
   }
-  if(view!=='lookup'&&!sessions[mode]) renderHome();
+  if(SETS[view]&&!sessions[mode]) renderHome();
+  if(view==='leaks') renderLeaks();
 }
 async function saveHist(m){
-  const v=JSON.stringify(hists[m].slice(-300)), key=SETS[m].key;
+  const v=JSON.stringify(hists[m].slice(-300)), key=histKey(m);
   try{ if(LS) LS.setItem(key,v); else if(window.storage) await window.storage.set(key,v,false) }catch(e){}
 }
 function storeNote(){return (LS||window.storage)?'':'<p class="empty">Scores are kept while this page stays open. Add the app to your Home Screen from its web address to keep them.</p>'}
 
 /* ---- page switch: two groups, each with its own pages ---- */
-const GROUPS={look:[['lookup','Folded to you'],['vsr','Facing a raise']],train:[['open','Open'],['vsUTG','vs UTG'],['vsCO','vs CO'],['vsSB','vs SB']],chart:[['ch-open','Opening'],['ch-vs','Facing a raise']]};
+const GROUPS={look:[['lookup','Folded to you'],['vsr','Facing a raise']],train:[['open','Open'],['vsUTG','vs UTG'],['vsCO','vs CO'],['vsSB','vs SB'],['leaks','Leaks'],['drill','',1]],chart:[['ch-open','Opening'],['ch-vs','Facing a raise']]};
 const lastPage={look:'lookup',train:'open',chart:'ch-open'};
 let view='lookup', timer=null, resetArmed=false;
 $('tabs').onclick=e=>{const b=e.target.closest('button');if(b)showTab(lastPage[b.dataset.g])};
@@ -469,16 +506,17 @@ function showTab(v){
   view=v;
   const g=Object.keys(GROUPS).find(k=>GROUPS[k].some(x=>x[0]===v)); lastPage[g]=v;
   document.querySelectorAll('#tabs button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.g===g));
-  $('sub').innerHTML=GROUPS[g].map(([k,l])=>`<button data-v="${k}" aria-pressed="${k===v}">${l}</button>`).join('');
+  $('sub').innerHTML=GROUPS[g].filter(x=>!x[2]).map(([k,l])=>`<button data-v="${k}" aria-pressed="${k===v||(k==='leaks'&&v==='drill')}">${l}</button>`).join('');
   if(v==='lookup'||v==='vsr'){renderLook();show(v==='lookup'?'v-lookup':'v-vsr');return}
+  if(v==='leaks'){renderLeaks();show('v-leaks');return}
   if(g==='chart'){cKind=v==='ch-open'?'open':'vs';renderChart();show('v-chart');return}
   mode=v; resetArmed=false;
   const sess=sessions[mode];
-  if(!sess){renderHome();show('v-home')}
+  if(!sess){ if(v==='drill'){startSession();return} renderHome();show('v-home')}
   else if(sess.done){$('done-body').innerHTML=sess.doneHTML;show('v-done')}
   else{ if(sess.answered){sess.i++;sess.cur=null} drawDeal(); show('v-drill') }
 }
-function show(id){['v-lookup','v-vsr','v-chart','v-home','v-drill','v-done'].forEach(x=>$(x).hidden=x!==id)}
+function show(id){['v-lookup','v-vsr','v-chart','v-leaks','v-home','v-drill','v-done'].forEach(x=>$(x).hidden=x!==id)}
 
 /* ---- home ---- */
 function renderHome(){
@@ -521,20 +559,25 @@ function chart(list){
 }
 
 /* ---- drill ---- */
+const DRILL_KEY='leakdrill-history';
+const setOf=cur=>SETS[cur.s];
 function startSession(){
   clearTimeout(timer);
-  sessions[mode]={i:0,score:0,res:[],done:false,cur:null,answered:false};
+  const sess={i:0,score:0,res:[],done:false,cur:null,answered:false};
+  if(mode==='drill'){sess.deck=buildDrillDeck(); if(!sess.deck.length){showTab('leaks');return}}
+  sessions[mode]=sess;
   show('v-drill'); drawDeal();
 }
 function drawDeal(){
   clearTimeout(timer);
-  const sess=sessions[mode], set=S();
-  if(sess.i>=ROUND){finish();return}
-  if(!sess.cur){sess.cur=deal();sess.answered=false}
-  const cur=sess.cur;
-  $('d-count').textContent=`Hand ${sess.i+1} of ${ROUND}`;
+  const sess=sessions[mode];
+  if(sess.i>=ROUND||(sess.deck&&sess.i>=sess.deck.length)){finish();return}
+  if(!sess.cur){sess.cur=sess.deck?sess.deck[sess.i]:{s:mode,...deal()};sess.answered=false}
+  const cur=sess.cur, set=setOf(cur), total=sess.deck?sess.deck.length:ROUND;
+  $('d-count').textContent=`${mode==='drill'?'Leak drill. ':''}Hand ${sess.i+1} of ${total}`;
   $('d-score').textContent=sess.score;
-  $('pips').innerHTML=Array.from({length:ROUND},(_,i)=>`<i class="${i<sess.res.length?(sess.res[i].ok?'ok':'bad'):i===sess.i?'cur':''}"></i>`).join('');
+  $('pips').style.gridTemplateColumns=`repeat(${total},1fr)`;
+  $('pips').innerHTML=Array.from({length:total},(_,i)=>`<i class="${i<sess.res.length?(sess.res[i].ok?'ok':'bad'):i===sess.i?'cur':''}"></i>`).join('');
   const yi=POS.indexOf(cur.pos);
   $('seats').innerHTML=POS.map((p,i)=>{
     const st=set.seat(i,yi);
@@ -552,10 +595,11 @@ function drawDeal(){
 }
 $('opts').onpointerdown=e=>{const b=e.target.closest('button');if(b){e.preventDefault();answer(b.dataset.k)}};
 function answer(k){
-  const sess=sessions[mode], set=S();
+  const sess=sessions[mode];
   if(!sess||sess.answered) return; sess.answered=true;
-  const cur=sess.cur, f=set.f(cur.pos,cur.name), good=okActions(f), ok=good.includes(k);
-  sess.res.push({pos:cur.pos,name:cur.name,pick:k,ok,best:primary(f),f});
+  const cur=sess.cur, set=setOf(cur), f=set.f(cur.pos,cur.name), good=okActions(f), ok=good.includes(k);
+  sess.res.push({s:cur.s,pos:cur.pos,name:cur.name,pick:k,ok,best:primary(f),f,wasMissed:!!cur.wasMissed});
+  LOG.push({t:Date.now(),s:cur.s,p:cur.pos,h:cur.name,k,o:ok?1:0}); saveLog();
   if(ok) sess.score++;
   document.querySelectorAll('#opts button').forEach(b=>{
     b.disabled=true;
@@ -570,7 +614,8 @@ function answer(k){
   else if(k==='x'&&good.includes('r')) msg=`<strong>Right to raise, wrong size</strong><div>${set.sizeTip(cur.pos)}</div>`;
   else msg=`<strong>${set.act(cur.pos,primary(f))}</strong>${mixed?mixHTMLW(f,set.words):''}`;
   $('fb').className='fb '+(ok?'ok':'bad'); $('fb').innerHTML=msg;
-  $('d-next').hidden=false; $('d-next').textContent=sess.i===ROUND-1?'See results':'Next hand';
+  const last=sess.i===(sess.deck?sess.deck.length:ROUND)-1;
+  $('d-next').hidden=false; $('d-next').textContent=last?'See results':'Next hand';
   if(ok) timer=setTimeout(advance, mixed?1400:700);
 }
 function advance(){
@@ -581,26 +626,75 @@ function advance(){
 $('d-next').onpointerdown=e=>{e.preventDefault();advance()};
 
 function finish(){
-  const sess=sessions[mode], set=S(), hist=hists[mode];
-  const byPos={}; sess.res.forEach(r=>{byPos[r.pos]=byPos[r.pos]||[0,0];byPos[r.pos][1]++;if(r.ok)byPos[r.pos][0]++});
+  const sess=sessions[mode], hist=hists[mode], drill=mode==='drill', n=sess.res.length;
+  const keyOf=r=>drill?spotLabel(r.s,r.pos):r.pos;
+  const byPos={}; sess.res.forEach(r=>{const k=keyOf(r);byPos[k]=byPos[k]||[0,0];byPos[k][1]++;if(r.ok)byPos[k][0]++});
   const prev=hist[hist.length-1];
-  hist.push({t:Date.now(),s:sess.score,n:ROUND,pos:byPos}); saveHist(mode);
+  hist.push({t:Date.now(),s:sess.score,n,pos:byPos}); saveHist(mode);
   sess.done=true;
   let cmp='First round logged';
   if(prev){const d=sess.score-prev.s; cmp=d>0?`Up ${d} on your last round`:d<0?`Down ${-d} on your last round`:'Same as your last round'}
   const misses=sess.res.filter(r=>!r.ok);
-  let html=`<div class="score"><b>${sess.score}<small> / ${ROUND}</small></b><p>${set.title}. ${cmp}</p></div>`;
+  let html=`<div class="score"><b>${sess.score}<small> / ${n}</small></b><p>${drill?'Leak drill':SETS[mode].title}. ${cmp}</p></div>`;
+  if(drill){
+    const fixed=sess.res.filter(r=>r.ok&&r.wasMissed).length, tried=sess.res.filter(r=>r.wasMissed).length;
+    html+=`<div class="box"><h2>Past misses</h2><p class="empty">You got <b style="color:var(--text)">${fixed} of ${tried}</b> hands you had missed before right this time. Hands you keep getting right drop out of future drills.</p></div>`;
+  }
   html+='<div class="box"><h2>'+(misses.length?`Missed hands (${misses.length})`:'No misses this round')+'</h2>'+misses.map(r=>{
-    const mixed=Math.max(r.f.r,r.f.c,r.f.f)<97;
-    return `<div class="miss"><span>${r.pos}</span><span class="h">${r.name}</span><span class="d">You: ${set.act(r.pos,r.pick)}<br>Answer: <b>${set.act(r.pos,r.best)}</b>${mixed?' ('+mixTextW(r.f,set.words)+')':''}</span></div>`;
+    const set=SETS[r.s], mixed=Math.max(r.f.r,r.f.c,r.f.f)<97;
+    return `<div class="miss${drill?' mrow':''}"><span>${keyOf(r)}</span><span class="h">${r.name}</span><span class="d">You: ${set.act(r.pos,r.pick)}<br>Answer: <b>${set.act(r.pos,r.best)}</b>${mixed?' ('+mixTextW(r.f,set.words)+')':''}</span></div>`;
   }).join('')+'</div>';
   sess.doneHTML=html;
   $('done-body').innerHTML=html;
+  $('to-home').textContent=drill?'Back to leaks':'See progress';
   show('v-done');
 }
 $('start').onclick=startSession;
 $('again').onclick=startSession;
-$('to-home').onclick=()=>{sessions[mode]=null;renderHome();show('v-home')};
+$('to-home').onclick=()=>{
+  sessions[mode]=null;
+  if(mode==='drill'){showTab('leaks');return}
+  renderHome();show('v-home');
+};
+
+/* ---- leak drill deck ---- */
+// Weights: hands you missed (recent misses count more, each correct answer since halves it),
+// the hands next to them on the chart in the same spot, and edge hands from your worst spots.
+function buildDrillDeck(){
+  const now=Date.now(), DAY=86400000, w=new Map(), stats=new Map(), spot=new Map();
+  LOG.filter(x=>SETS[x.s]).forEach(x=>{
+    const k=x.s+'|'+x.p+'|'+x.h;
+    let st=stats.get(k); if(!st){st={miss:0,streak:0};stats.set(k,st)}
+    if(x.o) st.streak++; else {st.miss+=Math.pow(.5,(now-x.t)/(7*DAY)); st.streak=0}
+    const sk=x.s+'|'+x.p; let sp=spot.get(sk); if(!sp){sp={n:0,m:0};spot.set(sk,sp)}
+    sp.n++; if(!x.o) sp.m++;
+  });
+  const add=(k,v)=>w.set(k,(w.get(k)||0)+v);
+  const missed=new Set();
+  stats.forEach((st,k)=>{
+    if(!st.miss) return;
+    const v=st.miss*Math.pow(.5,st.streak); if(v<.05) return;
+    missed.add(k); add(k,v*3);
+    const [s,p,h]=k.split('|'); const [i,j]=gridPos(h);
+    [[1,0],[-1,0],[0,1],[0,-1]].forEach(([di,dj])=>{const x=i+di,y=j+dj;if(x>=0&&y>=0&&x<13&&y<13) add(s+'|'+p+'|'+nameAt(x,y),v*.6)});
+  });
+  if(!missed.size) return [];
+  [...spot.entries()].filter(([,sp])=>sp.m).sort((a,b)=>b[1].m/b[1].n-a[1].m/a[1].n).slice(0,3).forEach(([sk])=>{
+    const [s,p]=sk.split('|'); SETS[s].edge[p].forEach(h=>add(sk+'|'+h,.25));
+  });
+  const pool=[...w.entries()], deck=[];
+  for(let n=0;n<ROUND&&pool.length;n++){
+    const tot=pool.reduce((a,e)=>a+e[1],0); let r=Math.random()*tot, i=0;
+    while(i<pool.length-1&&(r-=pool[i][1])>0) i++;
+    const [k]=pool.splice(i,1)[0], [s,p,h]=k.split('|');
+    deck.push({s,pos:p,...comboFor(h),wasMissed:missed.has(k)});
+  }
+  return deck.sort(()=>Math.random()-.5);
+}
+function gridPos(h){
+  const a=R.indexOf(h[0]), b=R.indexOf(h[1]);
+  return h.length===2?[a,a]:h[2]==='s'?[a,b]:[b,a];
+}
 
 /* ================= charts ================= */
 let cKind='open', cPos='BTN', cR='UTG', cY='BB', cSel=null;
@@ -663,6 +757,153 @@ $('c-grid').onclick=e=>{
   renderDetail();
 };
 
+/* ================= leak log ================= */
+// Every trainer answer: t time, s drill set, p seat, h hand, k pick, o 1 if correct
+let LOG=[], logReset=false;
+const LOG_KEY='trainer-log', LOG_MAX=12000;
+async function loadLog(){
+  try{
+    if(LS) LOG=JSON.parse(LS.getItem(LOG_KEY)||'[]');
+    else if(window.storage){const r=await window.storage.get(LOG_KEY,false); if(r&&r.value) LOG=JSON.parse(r.value)}
+  }catch(e){LOG=[]}
+  if(view==='leaks') renderLeaks();
+}
+async function saveLog(){
+  if(LOG.length>LOG_MAX) LOG=LOG.slice(-LOG_MAX);
+  const v=JSON.stringify(LOG);
+  try{ if(LS) LS.setItem(LOG_KEY,v); else if(window.storage) await window.storage.set(LOG_KEY,v,false) }catch(e){}
+}
+const TYPES={
+  tight:['Too tight','Folded hands the chart plays'],
+  loose:['Too loose','Played hands the chart folds'],
+  passive:['Too passive','Called or limped where the chart raises'],
+  aggressive:['Too aggressive','Raised where the chart calls or limps'],
+  size:['Wrong size','Opened 3.5bb where the open is 2.5bb']
+};
+const ADVICE={
+  tight:'Study the bottom edge of each range: the weakest hands still coloured in.',
+  loose:'Study where each range stops: the first blue hands below the coloured ones.',
+  passive:'Study the red part of each chart: the hands that raise, not call.',
+  aggressive:'Study the green part of each chart: the hands that call or limp, not raise.',
+  size:'Open 2.5bb from UTG to BTN. Only the SB opens bigger, to 3.5bb.'
+};
+function missType(f,k){
+  const good=okActions(f);
+  if(k==='f') return 'tight';
+  if(good.length===1&&good[0]==='f') return 'loose';
+  if(k==='x') return good.includes('r')?'size':'loose';
+  if(k==='c'&&good.includes('r')) return 'passive';
+  if(k==='r'&&good.includes('c')) return 'aggressive';
+  return 'loose';
+}
+function handClass(h){
+  const hi=R.indexOf(h[0]), lo=R.indexOf(h[1]);
+  if(h.length===2) return 'Pairs';
+  const s=h[2]==='s', bw=lo<=4;
+  if(h[0]==='A') return s?'Suited aces':'Offsuit aces';
+  if(bw) return s?'Suited broadways':'Offsuit broadways';
+  if(s) return lo-hi<=2?'Suited connectors':'Other suited';
+  return 'Other offsuit';
+}
+const spotLabel=(s,p)=>s==='open'?`${p} open`:`${p} vs ${SETS[s].raiser}`;
+function openChart(s,p,h){
+  if(!SETS[s]) return;
+  if(s==='open'){cPos=p}else{cR=SETS[s].raiser;cY=p}
+  cSel=h||null; showTab(s==='open'?'ch-open':'ch-vs');
+}
+function dayLabel(t){
+  const d=new Date(t), now=new Date(), day=86400000;
+  const diff=Math.floor((new Date(now.toDateString())-new Date(d.toDateString()))/day);
+  return diff===0?'Today':diff===1?'Yesterday':d.toLocaleDateString(undefined,{day:'numeric',month:'short'});
+}
+function grp(list,keyFn){const m=new Map();list.forEach(x=>{const k=keyFn(x);if(!m.has(k))m.set(k,[]);m.get(k).push(x)});return m}
+function topType(misses){
+  const c={}; misses.forEach(x=>c[x.type]=(c[x.type]||0)+1);
+  return Object.entries(c).sort((a,b)=>b[1]-a[1])[0]?.[0];
+}
+
+function renderLeaks(){
+  const body=$('leaks-body');
+  const all=LOG.filter(x=>SETS[x.s]).map(x=>{
+    const f=SETS[x.s].f(x.p,x.h);
+    return {...x,f,type:x.o?null:missType(f,x.k)};
+  });
+  if(!all.length){body.innerHTML=`<div><h1>Leaks</h1><p class="lede">Every hand you answer in Train is logged here. After a few rounds this page shows which spots and hands you miss most, and what kind of mistake it is.</p></div><div class="box empty">No hands logged yet. Play a round in any Train page.</div>`;return}
+  const miss=all.filter(x=>!x.o), rate=(m,n)=>n?Math.round(m/n*100):0;
+  const recent=all.slice(-100), recentMiss=recent.filter(x=>!x.o).length;
+  let h=`<div><h1>Leaks</h1><p class="lede">${all.length} hands logged, ${miss.length} missed.</p></div>`;
+  h+=`<div class="stats" style="grid-template-columns:repeat(3,1fr)">
+    <div class="stat"><b>${100-rate(miss.length,all.length)}%</b><small>Accuracy, all</small></div>
+    <div class="stat"><b>${100-rate(recentMiss,recent.length)}%</b><small>Last ${recent.length}</small></div>
+    <div class="stat"><b>${miss.length}</b><small>Misses</small></div></div>`;
+  if(!miss.length){body.innerHTML=h+'<div class="box empty">No misses yet. Keep going.</div>';return}
+
+  // spots ranked by miss rate (spots with too few hands go last)
+  const spots=[...grp(all,x=>x.s+'|'+x.p).entries()].map(([k,list])=>{
+    const [s,p]=k.split('|'), m=list.filter(x=>!x.o);
+    return {s,p,n:list.length,m:m.length,r:m.length/list.length,type:topType(m),misses:m};
+  }).filter(x=>x.m>0).sort((a,b)=>((b.n>=5)-(a.n>=5))||(b.r-a.r)||(b.m-a.m));
+
+  // leak drill
+  const dh=hists.drill;
+  let dstat='';
+  if(dh.length){const l=dh[dh.length-1], l5=dh.slice(-5), a5=Math.round(l5.reduce((a,s)=>a+s.s/s.n,0)/l5.length*100);
+    dstat=`<p class="dstat">${dh.length} drill round${dh.length>1?'s':''}. Last <b>${l.s}/${l.n}</b>, last 5 average <b>${a5}%</b>.</p>`+chart(dh.slice(-30))}
+  h+=`<div class="box drillbox"><h2>Drill my leaks</h2><p>20 hands from the spots and hands you miss, plus the hands next to them on the chart. Hands you keep getting right drop out of the drill.</p>${dstat}<button class="big" id="drill-go">Drill my leaks</button></div>`;
+
+  // focus card: the worst spot and the hands missed in it
+  const fx=spots[0], fh=[...grp(fx.misses,x=>x.h).entries()].sort((a,b)=>b[1].length-a[1].length).slice(0,6);
+  h+=`<div class="box focus"><h2>Study next</h2>
+    <div class="f-spot">${spotLabel(fx.s,fx.p)}</div>
+    <p>${fx.m} of ${fx.n} missed (${Math.round(fx.r*100)}%), mostly <b>${TYPES[fx.type][0].toLowerCase()}</b>. ${ADVICE[fx.type]}</p>
+    <div class="chips">${fh.map(([hand,l])=>`<button class="chip" data-s="${fx.s}" data-p="${fx.p}" data-h="${hand}">${hand}${l.length>1?` ×${l.length}`:''}</button>`).join('')}</div>
+    <button class="big f-btn" data-s="${fx.s}" data-p="${fx.p}">Open this chart</button></div>`;
+
+  // mistake types
+  const tc={}; miss.forEach(x=>tc[x.type]=(tc[x.type]||0)+1);
+  h+='<div class="box"><h2>Type of mistake</h2>'+Object.entries(tc).sort((a,b)=>b[1]-a[1]).map(([t,c])=>
+    `<div class="lt"><div class="lt-top"><b>${TYPES[t][0]}</b><span>${c} · ${rate(c,miss.length)}%</span></div><div class="track"><i style="width:${rate(c,miss.length)}%"></i></div><small>${TYPES[t][1]}</small></div>`).join('')+'</div>';
+
+  // spots
+  h+='<div class="box"><h2>Spots by miss rate</h2>'+spots.slice(0,10).map(x=>
+    `<button class="lrow" data-s="${x.s}" data-p="${x.p}"><span class="l-name">${spotLabel(x.s,x.p)}<small>${TYPES[x.type][0]}</small></span><span class="track"><i style="width:${Math.round(x.r*100)}%"></i></span><span class="l-num">${Math.round(x.r*100)}%<small>${x.m}/${x.n}${x.n<5?', few hands':''}</small></span></button>`).join('')+'</div>';
+
+  // repeat misses
+  const reps=[...grp(all,x=>x.s+'|'+x.p+'|'+x.h).values()].map(list=>{
+    const m=list.filter(x=>!x.o); if(m.length<2) return null;
+    const x=list[0], set=SETS[x.s];
+    const picks={}; m.forEach(y=>picks[y.k]=(picks[y.k]||0)+1);
+    const wrong=Object.entries(picks).sort((a,b)=>b[1]-a[1])[0][0];
+    return {s:x.s,p:x.p,h:x.h,m:m.length,n:list.length,you:set.act(x.p,wrong),ans:set.act(x.p,primary(x.f)),f:x.f,words:set.words};
+  }).filter(Boolean).sort((a,b)=>b.m-a.m||a.n-b.n);
+  h+='<div class="box"><h2>Hands you keep missing</h2>'+(reps.length?reps.slice(0,15).map(r=>
+    `<button class="miss mrow" data-s="${r.s}" data-p="${r.p}" data-h="${r.h}"><span>${spotLabel(r.s,r.p)}</span><span class="h">${r.h}</span><span class="d">Missed ${r.m} of ${r.n}. You: ${r.you}<br>Answer: <b>${r.ans}</b>${Math.max(r.f.r,r.f.c,r.f.f)<97?' ('+mixTextW(r.f,r.words)+')':''}</span></button>`).join('')
+    :'<p class="empty">No hand missed twice in the same spot yet.</p>')+'</div>';
+
+  // hand classes
+  const cls=[...grp(all,x=>handClass(x.h)).entries()].map(([c,l])=>({c,n:l.length,m:l.filter(x=>!x.o).length}))
+    .filter(x=>x.n>=5).sort((a,b)=>b.m/b.n-a.m/a.n);
+  if(cls.length) h+='<div class="box"><h2>Miss rate by hand type</h2>'+cls.map(x=>
+    `<div class="acc wide"><b>${x.c}</b><div class="track"><i style="width:${rate(x.m,x.n)}%"></i></div><span>${rate(x.m,x.n)}%</span></div>`).join('')+'</div>';
+
+  // recent log
+  h+='<div class="box"><h2>Recent misses</h2>'+miss.slice(-25).reverse().map(x=>{
+    const set=SETS[x.s];
+    return `<button class="miss mrow" data-s="${x.s}" data-p="${x.p}" data-h="${x.h}"><span>${spotLabel(x.s,x.p)}</span><span class="h">${x.h}</span><span class="d">${dayLabel(x.t)}. You: ${set.act(x.p,x.k)}<br>Answer: <b>${set.act(x.p,primary(x.f))}</b></span></button>`;
+  }).join('')+'</div>';
+  h+=`<p class="empty" style="font-size:13px">Tap any spot or hand to open its chart.</p><button class="quiet" id="log-reset">${logReset?'Tap again to delete the whole log':'Reset leak log'}</button>`;
+  body.innerHTML=h;
+  $('drill-go').onclick=()=>{sessions.drill=null;showTab('drill')};
+  $('log-reset').onclick=async()=>{
+    if(!logReset){logReset=true;renderLeaks();setTimeout(()=>{logReset=false;if(view==='leaks')renderLeaks()},4000);return}
+    logReset=false; LOG=[]; await saveLog(); renderLeaks();
+  };
+}
+$('leaks-body').onclick=e=>{
+  const b=e.target.closest('button[data-s]'); if(!b) return;
+  openChart(b.dataset.s,b.dataset.p,b.dataset.h);
+};
+
 /* ================= keyboard ================= */
 document.addEventListener('keydown',e=>{
   const k=e.key.toUpperCase();
@@ -675,12 +916,12 @@ document.addEventListener('keydown',e=>{
     if(e.key==='Escape'||e.key==='Backspace'||e.key===' '){e.preventDefault();picks=[];renderLook()}
   } else if(!$('v-drill').hidden){
     const sess=sessions[mode];
-    if(sess&&!sess.answered&&['1','2','3'].includes(e.key)){answer(S().options(sess.cur.pos)[+e.key-1][0]);return}
+    if(sess&&!sess.answered&&['1','2','3'].includes(e.key)){answer(setOf(sess.cur).options(sess.cur.pos)[+e.key-1][0]);return}
     if(sess&&sess.answered&&(e.key==='Enter'||e.key===' ')){e.preventDefault();advance()}
   } else if(e.key==='Enter'&&(!$('v-home').hidden||!$('v-done').hidden)){e.preventDefault();startSession()}
 });
 
-showTab('lookup'); loadHist();
+showTab('lookup'); loadHist(); loadLog();
 </script>
 
 
