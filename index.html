@@ -81,6 +81,23 @@ button:focus-visible{outline:3px solid #fff;outline-offset:2px}
 .big b{background:var(--ink);color:var(--text);border-radius:7px;padding:2px 10px}
 .foot{font-size:13px;color:var(--muted);text-align:center}
 
+/* ---------- charts ---------- */
+.grid{display:grid;grid-template-columns:repeat(13,1fr);gap:2px;flex-shrink:0}
+.grid button{aspect-ratio:1/.86;border-radius:3px;padding:0;font-family:var(--cond);font-size:clamp(9px,2.6vw,14px);font-weight:700;
+  color:#fff;text-shadow:0 1px 1px rgba(0,0,0,.45);letter-spacing:-.02em;overflow:hidden}
+.grid button.on{outline:2.5px solid var(--gold);outline-offset:1px;position:relative;z-index:1}
+#v-chart .pos button{height:42px;font-size:17px}
+#v-chart .pos button:disabled{opacity:.25;cursor:default}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:15px;color:var(--muted);padding:0 2px}
+.legend b{color:var(--text)}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.cdetail{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 14px;min-height:78px;display:flex;flex-direction:column;justify-content:center;gap:6px;flex-shrink:0}
+.cd-top{display:flex;align-items:baseline;gap:12px}
+.cd-top strong{font-family:var(--serif);font-size:30px;line-height:1}
+.cd-act{font-size:24px;font-weight:800}
+.cd-act.r{color:#ff7d81} .cd-act.c{color:#5fd28f} .cd-act.f{color:#7fa8e6}
+.cdetail .mix{font-size:15px}
+
 /* ---------- trainer: home ---------- */
 .scroll{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:14px;padding:2px}
 h1{font-family:var(--serif);font-size:30px;line-height:1.1;font-weight:700}
@@ -158,6 +175,7 @@ h1{font-family:var(--serif);font-size:30px;line-height:1.1;font-weight:700}
   <nav class="tabs" id="tabs">
     <button data-g="look" aria-pressed="true">Lookup</button>
     <button data-g="train" aria-pressed="false">Train</button>
+    <button data-g="chart" aria-pressed="false">Charts</button>
   </nav>
   <nav class="sub" id="sub"></nav>
 
@@ -179,6 +197,17 @@ h1{font-family:var(--serif);font-size:30px;line-height:1.1;font-weight:700}
     <div class="result" id="r-result" aria-live="polite"></div>
     <div class="pad" id="rpad" role="group" aria-label="Card ranks"></div>
     <button class="big" id="r-next"></button>
+  </section>
+
+  <!-- CHARTS -->
+  <section class="view" id="v-chart" hidden>
+    <div class="scroll" style="gap:10px">
+      <div id="c-sel" style="display:flex;flex-direction:column;gap:8px"></div>
+      <div class="meta"><span id="c-title"></span><span id="c-est"></span></div>
+      <div class="grid" id="c-grid"></div>
+      <div class="legend" id="c-legend"></div>
+      <div class="cdetail" id="c-detail" aria-live="polite"></div>
+    </div>
   </section>
 
   <!-- TRAIN: home -->
@@ -430,25 +459,26 @@ async function saveHist(m){
 function storeNote(){return (LS||window.storage)?'':'<p class="empty">Scores are kept while this page stays open. Add the app to your Home Screen from its web address to keep them.</p>'}
 
 /* ---- page switch: two groups, each with its own pages ---- */
-const GROUPS={look:[['lookup','Folded to you'],['vsr','Facing a raise']],train:[['open','Open'],['vsUTG','vs UTG'],['vsCO','vs CO'],['vsSB','vs SB']]};
-const lastPage={look:'lookup',train:'open'};
+const GROUPS={look:[['lookup','Folded to you'],['vsr','Facing a raise']],train:[['open','Open'],['vsUTG','vs UTG'],['vsCO','vs CO'],['vsSB','vs SB']],chart:[['ch-open','Opening'],['ch-vs','Facing a raise']]};
+const lastPage={look:'lookup',train:'open',chart:'ch-open'};
 let view='lookup', timer=null, resetArmed=false;
 $('tabs').onclick=e=>{const b=e.target.closest('button');if(b)showTab(lastPage[b.dataset.g])};
 $('sub').onclick=e=>{const b=e.target.closest('button');if(b)showTab(b.dataset.v)};
 function showTab(v){
   clearTimeout(timer);
   view=v;
-  const g=GROUPS.look.some(x=>x[0]===v)?'look':'train'; lastPage[g]=v;
+  const g=Object.keys(GROUPS).find(k=>GROUPS[k].some(x=>x[0]===v)); lastPage[g]=v;
   document.querySelectorAll('#tabs button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.g===g));
   $('sub').innerHTML=GROUPS[g].map(([k,l])=>`<button data-v="${k}" aria-pressed="${k===v}">${l}</button>`).join('');
   if(v==='lookup'||v==='vsr'){renderLook();show(v==='lookup'?'v-lookup':'v-vsr');return}
+  if(g==='chart'){cKind=v==='ch-open'?'open':'vs';renderChart();show('v-chart');return}
   mode=v; resetArmed=false;
   const sess=sessions[mode];
   if(!sess){renderHome();show('v-home')}
   else if(sess.done){$('done-body').innerHTML=sess.doneHTML;show('v-done')}
   else{ if(sess.answered){sess.i++;sess.cur=null} drawDeal(); show('v-drill') }
 }
-function show(id){['v-lookup','v-vsr','v-home','v-drill','v-done'].forEach(x=>$(x).hidden=x!==id)}
+function show(id){['v-lookup','v-vsr','v-chart','v-home','v-drill','v-done'].forEach(x=>$(x).hidden=x!==id)}
 
 /* ---- home ---- */
 function renderHome(){
@@ -571,6 +601,67 @@ function finish(){
 $('start').onclick=startSession;
 $('again').onclick=startSession;
 $('to-home').onclick=()=>{sessions[mode]=null;renderHome();show('v-home')};
+
+/* ================= charts ================= */
+let cKind='open', cPos='BTN', cR='UTG', cY='BB', cSel=null;
+function chartSpot(){
+  if(cKind==='open'){
+    const p=cPos;
+    return {g:h=>freq(p,h), est:false,
+      lab:{r:'Raise '+(p==='SB'?'3.5bb':'2.5bb'),c:'Limp',f:'Fold'}, words:{r:'raise',c:'limp'},
+      title:`Folded to you on the <b>${p}</b>`};
+  }
+  const spot=VS_ALL[cR][cY], sz=size3(cR,cY);
+  return {g:h=>{const v=spot.h[h];return v?{r:v[0],c:v[1],f:Math.max(0,100-v[0]-v[1])}:{r:0,c:0,f:100}}, est:!!spot.e,
+    lab:{r:'3-bet '+sz,c:'Call',f:'Fold'}, words:{r:'3-bet',c:'call'},
+    title:`<b>${cR}</b> opens ${cR==='SB'?'3.5bb':'2.5bb'}, you're on the <b>${cY}</b>`};
+}
+function seatRow(label,list,attr,cur,disabled){
+  const cells=POS.map(p=>list.includes(p)
+    ?`<button data-${attr}="${p}" aria-pressed="${p===cur}" ${disabled(p)?'disabled':''}>${p}</button>`:'<span></span>').join('');
+  return `<div class="prow"><span class="plab">${label}</span><div class="pos ${attr==='cr'?'rpos':''}">${cells}</div></div>`;
+}
+function renderChart(){
+  const sel=$('c-sel');
+  if(cKind==='open') sel.innerHTML=seatRow('Seat',RFI,'cp',cPos,()=>false);
+  else sel.innerHTML=seatRow('Raiser',OPENERS,'cr',cR,p=>POS.indexOf(p)>=POS.indexOf(cY))+seatRow('You',POS.slice(1),'cy',cY,()=>false);
+  const s=chartSpot();
+  $('c-title').innerHTML=s.title;
+  $('c-est').innerHTML=s.est?'<span class="est">Estimated</span>':'Solver chart';
+  let html='', tot={r:0,c:0,f:0};
+  for(let i=0;i<13;i++)for(let j=0;j<13;j++){
+    const h=nameAt(i,j), f=s.g(h), n=i===j?6:j>i?4:12, a=f.r, b=f.r+f.c;
+    tot.r+=n*f.r; tot.c+=n*f.c; tot.f+=n*f.f;
+    html+=`<button data-h="${h}" class="${h===cSel?'on':''}" style="background:linear-gradient(90deg,var(--raise) ${a}%,var(--call) ${a}% ${b}%,var(--fold) ${b}%)">${h}</button>`;
+  }
+  $('c-grid').innerHTML=html;
+  const pct=x=>Math.round(x/1326)+'%';
+  $('c-legend').innerHTML=`<span><i style="background:var(--raise)"></i>${s.lab.r} <b>${pct(tot.r)}</b></span>`
+    +(tot.c?`<span><i style="background:var(--call)"></i>${s.lab.c} <b>${pct(tot.c)}</b></span>`:'')
+    +`<span><i style="background:var(--fold)"></i>Fold <b>${pct(tot.f)}</b></span>`;
+  renderDetail(s);
+}
+function renderDetail(s){
+  s=s||chartSpot();
+  if(!cSel){$('c-detail').innerHTML='<span class="empty">Tap any hand for its exact frequencies.</span>';return}
+  const f=s.g(cSel), best=primary(f);
+  const parts=[]; if(f.r) parts.push(f.r+'% '+s.words.r); if(f.c) parts.push(f.c+'% '+s.words.c); if(f.f) parts.push(f.f+'% fold');
+  $('c-detail').innerHTML=`<div class="cd-top"><strong>${cSel}</strong><span class="cd-act ${best}">${s.lab[best]}</span></div>
+    <div class="mix"><div class="bar"><i class="r" style="width:${f.r}%"></i><i class="c" style="width:${f.c}%"></i></div>${parts.join(', ')}</div>`;
+}
+$('c-sel').onclick=e=>{
+  const b=e.target.closest('button'); if(!b||b.disabled) return;
+  if(b.dataset.cp) cPos=b.dataset.cp;
+  if(b.dataset.cr) cR=b.dataset.cr;
+  if(b.dataset.cy){cY=b.dataset.cy; if(POS.indexOf(cR)>=POS.indexOf(cY)) cR=POS[POS.indexOf(cY)-1]}
+  renderChart();
+};
+$('c-grid').onclick=e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  cSel=cSel===b.dataset.h?null:b.dataset.h;
+  document.querySelectorAll('#c-grid button').forEach(x=>x.classList.toggle('on',x.dataset.h===cSel));
+  renderDetail();
+};
 
 /* ================= keyboard ================= */
 document.addEventListener('keydown',e=>{
