@@ -35,11 +35,21 @@ button:focus-visible{outline:3px solid #fff;outline-offset:2px}
 .tabs button{flex:1 1 auto;min-width:0;padding:0 6px;height:36px;white-space:nowrap;border-radius:8px;font-size:16px;font-weight:600;color:var(--muted)}
 .tabs button[aria-pressed="true"]{background:var(--line);color:var(--text)}
 
+.sub{display:flex;gap:6px;flex-shrink:0;margin-top:-4px}
+.sub button{flex:1 1 0;min-width:0;height:32px;border-radius:16px;border:1px solid var(--line);font-size:15px;font-weight:600;color:var(--muted);white-space:nowrap}
+.sub button[aria-pressed="true"]{border-color:var(--muted);color:var(--text);background:var(--panel)}
+
 /* ---------- lookup ---------- */
 .pos{display:grid;grid-template-columns:repeat(6,1fr);gap:5px}
 .pos button,.seat{height:50px;border-radius:9px;background:var(--panel);border:1px solid var(--line);
   font-weight:700;font-size:19px;letter-spacing:.02em;color:var(--muted);display:flex;align-items:center;justify-content:center}
 .pos button[aria-pressed="true"]{background:var(--text);color:var(--ink);border-color:var(--text)}
+.prow{display:grid;grid-template-columns:54px 1fr;gap:6px;align-items:center}
+.plab{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+#v-vsr .pos button{height:44px;font-size:17px}
+.rpos button[aria-pressed="true"]{background:rgba(224,70,76,.18);color:var(--text);border-color:var(--raise);box-shadow:inset 0 0 0 1.5px var(--raise)}
+.rpos button:disabled{opacity:.25;cursor:default}
+.est{color:var(--gold);font-weight:700}
 .meta{display:flex;justify-content:space-between;font-size:15px;color:var(--muted);padding:0 3px}
 .meta b{color:var(--text);font-weight:600}
 .result{flex:1;min-height:170px;display:flex;flex-direction:column;gap:8px}
@@ -146,12 +156,10 @@ h1{font-family:var(--serif);font-size:30px;line-height:1.1;font-weight:700}
 <body>
 <div class="app">
   <nav class="tabs" id="tabs">
-    <button data-v="lookup" aria-pressed="true">Lookup</button>
-    <button data-v="open" aria-pressed="false">Open</button>
-    <button data-v="vsUTG" aria-pressed="false">vs UTG</button>
-    <button data-v="vsCO" aria-pressed="false">vs CO</button>
-    <button data-v="vsSB" aria-pressed="false">vs SB</button>
+    <button data-g="look" aria-pressed="true">Lookup</button>
+    <button data-g="train" aria-pressed="false">Train</button>
   </nav>
+  <nav class="sub" id="sub"></nav>
 
   <!-- LOOKUP -->
   <section class="view" id="v-lookup">
@@ -160,7 +168,17 @@ h1{font-family:var(--serif);font-size:30px;line-height:1.1;font-weight:700}
     <div class="result" id="result" aria-live="polite"></div>
     <div class="pad" id="pad" role="group" aria-label="Card ranks"></div>
     <button class="big" id="next"></button>
-    <div class="foot">Only for when it's folded to you. Tap the same rank twice for a pair.</div>
+    <div class="foot">Tap the same rank twice for a pair.</div>
+  </section>
+
+  <!-- LOOKUP: facing a raise -->
+  <section class="view" id="v-vsr" hidden>
+    <div class="prow"><span class="plab">Raiser</span><div class="pos rpos" id="rpos" role="group" aria-label="Raiser's position"></div></div>
+    <div class="prow"><span class="plab">You</span><div class="pos" id="ypos" role="group" aria-label="Your position"></div></div>
+    <div class="meta"><span id="r-size"></span><span id="r-est"></span></div>
+    <div class="result" id="r-result" aria-live="polite"></div>
+    <div class="pad" id="rpad" role="group" aria-label="Card ranks"></div>
+    <button class="big" id="r-next"></button>
   </section>
 
   <!-- TRAIN: home -->
@@ -198,6 +216,7 @@ h1{font-family:var(--serif);font-size:30px;line-height:1.1;font-weight:700}
 
 <script>
 const DATA={"UTG":{"AA":100,"AKs":100,"AQs":100,"AJs":100,"ATs":100,"A9s":100,"A8s":100,"A7s":100,"A6s":100,"A5s":100,"A4s":100,"A3s":100,"A2s":100,"AKo":100,"KK":100,"KQs":100,"KJs":100,"KTs":100,"K9s":100,"K8s":100,"K7s":100,"K6s":73,"K5s":100,"AQo":100,"KQo":100,"QQ":100,"QJs":100,"QTs":100,"Q9s":85,"AJo":100,"KJo":100,"QJo":20,"JJ":100,"JTs":100,"ATo":100,"KTo":59,"TT":100,"T9s":10,"A9o":9,"99":100,"88":100,"77":74,"76s":7,"66":30,"65s":25,"A5o":22,"55":20,"54s":20,"44":3},"HJ":{"AA":100,"AKs":100,"AQs":100,"AJs":100,"ATs":100,"A9s":100,"A8s":100,"A7s":100,"A6s":100,"A5s":100,"A4s":100,"A3s":100,"A2s":100,"AKo":100,"KK":100,"KQs":100,"KJs":100,"KTs":100,"K9s":100,"K8s":100,"K7s":100,"K6s":100,"K5s":100,"K4s":100,"K3s":14,"AQo":100,"KQo":100,"QQ":100,"QJs":100,"QTs":100,"Q9s":100,"Q8s":67,"AJo":100,"KJo":100,"QJo":100,"JJ":100,"JTs":100,"J9s":49,"ATo":100,"KTo":100,"QTo":36,"TT":100,"T9s":45,"A9o":85,"99":100,"A8o":29,"88":100,"77":100,"76s":10,"66":100,"65s":24,"A5o":58,"55":49,"54s":22,"44":7},"CO":{"AA":100,"AKs":100,"AQs":100,"AJs":100,"ATs":100,"A9s":100,"A8s":100,"A7s":100,"A6s":100,"A5s":100,"A4s":100,"A3s":100,"A2s":100,"AKo":100,"KK":100,"KQs":100,"KJs":100,"KTs":100,"K9s":100,"K8s":100,"K7s":100,"K6s":100,"K5s":100,"K4s":100,"K3s":100,"K2s":44,"AQo":100,"KQo":100,"QQ":100,"QJs":100,"QTs":100,"Q9s":100,"Q8s":100,"Q6s":36,"AJo":100,"KJo":100,"QJo":100,"JJ":100,"JTs":100,"J9s":100,"J8s":100,"J7s":40,"ATo":100,"KTo":100,"QTo":100,"JTo":100,"TT":100,"T9s":100,"T8s":51,"A9o":100,"K9o":52,"99":100,"98s":77,"A8o":100,"88":100,"A7o":78,"77":100,"76s":10,"A6o":9,"66":100,"65s":26,"A5o":100,"55":100,"54s":24,"A4o":7,"44":56,"33":12},"BTN":{"AA":100,"AKs":100,"AQs":100,"AJs":100,"ATs":100,"A9s":100,"A8s":100,"A7s":100,"A6s":100,"A5s":100,"A4s":100,"A3s":100,"A2s":100,"AKo":100,"KK":100,"KQs":100,"KJs":100,"KTs":100,"K9s":100,"K8s":100,"K7s":100,"K6s":100,"K5s":100,"K4s":100,"K3s":100,"K2s":100,"AQo":100,"KQo":100,"QQ":100,"QJs":100,"QTs":100,"Q9s":100,"Q8s":100,"Q7s":100,"Q6s":100,"Q5s":100,"Q4s":100,"Q3s":87,"AJo":100,"KJo":100,"QJo":100,"JJ":100,"JTs":100,"J9s":100,"J8s":100,"J7s":100,"J6s":100,"J5s":100,"ATo":100,"KTo":100,"QTo":100,"JTo":100,"TT":100,"T9s":100,"T8s":100,"T7s":100,"T6s":100,"A9o":100,"K9o":100,"Q9o":100,"J9o":100,"T9o":100,"99":100,"98s":100,"97s":100,"A8o":100,"K8o":100,"T8o":23,"88":100,"87s":100,"86s":90,"A7o":100,"K7o":21,"77":100,"76s":100,"75s":4,"A6o":100,"66":100,"65s":100,"A5o":100,"55":100,"54s":66,"A4o":100,"44":100,"A3o":100,"33":100,"A2o":4,"22":35},"SB":{"AA":[100,0],"AKs":[100,0],"AQs":[100,0],"AJs":[100,0],"ATs":[100,0],"A9s":[71,29],"A8s":[50,50],"A7s":[33,67],"A6s":[38,62],"A5s":[57,43],"A4s":[33,67],"A3s":[36,64],"A2s":[66,34],"AKo":[94,6],"KK":[99,0],"KQs":[99,0],"KJs":[100,0],"KTs":[64,36],"K9s":[29,71],"K8s":[34,66],"K7s":[67,33],"K6s":[89,11],"K5s":[92,8],"K4s":[100,0],"K3s":[100,0],"K2s":[100,0],"AQo":[91,9],"KQo":[74,26],"QQ":[100,0],"QJs":[67,33],"QTs":[37,63],"Q9s":[27,73],"Q8s":[75,25],"Q7s":[100,0],"Q6s":[100,0],"Q5s":[100,0],"Q4s":[100,0],"Q3s":[100,0],"Q2s":[73,27],"AJo":[82,18],"KJo":[61,39],"QJo":[75,25],"JJ":[91,9],"JTs":[46,54],"J9s":[21,79],"J8s":[86,14],"J7s":[100,0],"J6s":[57,43],"J5s":[53,47],"J4s":[70,30],"J3s":[26,40],"ATo":[73,27],"KTo":[81,19],"QTo":[92,8],"JTo":[90,10],"TT":[91,9],"T9s":[44,56],"T8s":[59,41],"T7s":[100,0],"T6s":[62,38],"T5s":[0,100],"T4s":[0,7],"A9o":[100,0],"K9o":[97,3],"Q9o":[72,28],"J9o":[68,32],"T9o":[77,23],"99":[59,41],"98s":[69,31],"97s":[100,0],"96s":[100,0],"95s":[3,74],"A8o":[100,0],"K8o":[56,44],"Q8o":[0,55],"J8o":[0,26],"T8o":[29,41],"98o":[60,40],"88":[49,51],"87s":[77,23],"86s":[100,0],"85s":[78,22],"A7o":[100,0],"K7o":[35,65],"87o":[0,16],"77":[42,58],"76s":[76,24],"75s":[93,7],"74s":[0,77],"A6o":[90,10],"K6o":[0,20],"66":[51,49],"65s":[81,19],"64s":[55,45],"A5o":[100,0],"55":[50,50],"54s":[85,15],"53s":[50,50],"A4o":[89,11],"44":[65,35],"A3o":[80,20],"33":[84,16],"A2o":[47,53],"22":[95,5]}};
+const VS_ALL={"UTG":{"HJ":{"e":0,"h":{"AA":[100,0],"AKs":[100,0],"AQs":[59,41],"AJs":[49,50],"ATs":[47,30],"A9s":[52,4],"A8s":[14,0],"A7s":[46,0],"A6s":[41,0],"A5s":[67,9],"A4s":[100,0],"A3s":[68,0],"AKo":[94,6],"KK":[100,0],"KQs":[60,40],"KJs":[87,13],"KTs":[56,9],"K9s":[28,0],"K8s":[12,0],"K7s":[16,0],"K6s":[26,0],"K5s":[54,0],"K4s":[8,0],"AQo":[82,4],"KQo":[78,0],"QQ":[82,18],"JJ":[55,45],"TT":[26,25],"99":[7,23],"88":[11,23],"87s":[3,0],"77":[4,5],"76s":[7,3],"66":[0,6],"65s":[27,8],"54s":[9,17]}},"CO":{"e":1,"h":{"AA":[100,0],"AKs":[100,0],"AQs":[57,43],"AJs":[24,75],"ATs":[36,52],"A9s":[56,12],"A8s":[26,0],"A7s":[48,0],"A6s":[50,0],"A5s":[66,22],"A4s":[100,0],"A3s":[84,0],"A2s":[10,0],"AKo":[97,3],"KK":[100,0],"KQs":[39,61],"KJs":[68,32],"KTs":[60,22],"K9s":[27,0],"K8s":[14,0],"K7s":[20,0],"K6s":[20,0],"K5s":[53,0],"K4s":[4,0],"AQo":[75,18],"KQo":[89,0],"QQ":[85,15],"QJs":[44,6],"QTs":[0,4],"JJ":[38,62],"JTs":[0,12],"TT":[32,43],"99":[20,34],"88":[16,33],"77":[4,16],"76s":[6,8],"66":[4,12],"65s":[26,15],"55":[0,6],"54s":[12,23]}},"BTN":{"e":0,"h":{"AA":[100,0],"AKs":[100,0],"AQs":[55,45],"AJs":[0,100],"ATs":[26,74],"A9s":[59,21],"A8s":[39,0],"A7s":[51,0],"A6s":[60,0],"A5s":[64,36],"A4s":[100,0],"A3s":[100,0],"A2s":[19,0],"AKo":[100,0],"KK":[100,0],"KQs":[18,82],"KJs":[50,50],"KTs":[64,36],"K9s":[26,0],"K8s":[17,0],"K7s":[23,0],"K6s":[15,0],"K5s":[52,0],"AQo":[68,32],"KQo":[100,0],"QQ":[88,12],"QJs":[87,13],"QTs":[0,7],"JJ":[20,80],"JTs":[0,24],"TT":[39,61],"99":[32,46],"88":[22,43],"77":[5,28],"76s":[6,12],"66":[9,19],"65s":[24,22],"55":[0,11],"54s":[15,29],"44":[0,4]}},"SB":{"e":1,"h":{"AA":[100,0],"AKs":[100,0],"AQs":[78,0],"AJs":[50,0],"ATs":[63,0],"A9s":[70,0],"A8s":[39,0],"A7s":[51,0],"A6s":[60,0],"A5s":[82,0],"A4s":[100,0],"A3s":[100,0],"A2s":[19,0],"AKo":[100,0],"KK":[100,0],"KQs":[59,0],"KJs":[75,0],"KTs":[82,0],"K9s":[26,0],"K8s":[17,0],"K7s":[23,0],"K6s":[15,0],"K5s":[52,0],"AQo":[84,0],"KQo":[100,0],"QQ":[94,0],"QJs":[94,0],"QTs":[4,0],"JJ":[60,0],"JTs":[12,0],"TT":[70,0],"99":[55,0],"88":[44,0],"77":[19,0],"76s":[12,0],"66":[18,0],"65s":[35,0],"55":[6,0],"54s":[30,0]}},"BB":{"e":0,"h":{"AA":[100,0],"AKs":[100,0],"AQs":[0,100],"AJs":[0,100],"ATs":[0,100],"A9s":[0,100],"A8s":[0,100],"A7s":[22,78],"A6s":[61,39],"A5s":[3,97],"A4s":[67,33],"A3s":[55,45],"A2s":[71,29],"AKo":[75,25],"KK":[100,0],"KQs":[0,100],"KJs":[0,100],"KTs":[0,100],"K9s":[18,82],"K8s":[35,65],"K7s":[50,50],"K6s":[80,20],"K5s":[73,0],"K4s":[22,0],"K3s":[3,0],"K2s":[40,0],"AQo":[0,100],"KQo":[22,78],"QQ":[24,76],"QJs":[19,81],"QTs":[0,100],"Q9s":[49,51],"Q8s":[18,0],"AJo":[0,100],"KJo":[0,57],"QJo":[0,14],"JJ":[0,100],"JTs":[0,100],"J9s":[0,100],"ATo":[25,59],"TT":[0,100],"T9s":[0,100],"T8s":[0,100],"T7s":[0,7],"99":[0,100],"98s":[0,100],"97s":[0,100],"88":[0,100],"87s":[21,79],"86s":[0,100],"77":[4,96],"76s":[18,82],"75s":[6,94],"66":[8,92],"65s":[0,100],"64s":[0,100],"A5o":[9,0],"55":[0,100],"54s":[0,100],"53s":[17,83],"44":[0,100],"43s":[27,70],"33":[0,100],"22":[0,100]}}},"HJ":{"CO":{"e":1,"h":{"AA":[100,0],"AKs":[100,0],"AQs":[74,26],"AJs":[38,62],"ATs":[32,56],"A9s":[62,16],"A8s":[38,8],"A7s":[62,0],"A6s":[70,0],"A5s":[74,14],"A4s":[100,0],"A3s":[84,0],"A2s":[50,0],"AKo":[97,3],"KK":[100,0],"KQs":[54,46],"KJs":[70,30],"KTs":[50,32],"K9s":[42,0],"K8s":[6,0],"K7s":[17,0],"K6s":[36,0],"K5s":[48,0],"K4s":[8,0],"AQo":[78,15],"KQo":[89,0],"QQ":[91,9],"QJs":[34,16],"QTs":[38,12],"AJo":[50,0],"KJo":[50,0],"JJ":[76,24],"JTs":[10,17],"ATo":[4,0],"KTo":[6,0],"TT":[40,35],"99":[16,42],"88":[12,35],"77":[10,18],"76s":[6,0],"66":[15,11],"65s":[19,8],"55":[0,3],"54s":[10,16]}},"BTN":{"e":1,"h":{"AA":[100,0],"AKs":[100,0],"AQs":[72,28],"AJs":[14,86],"ATs":[22,78],"A9s":[65,25],"A8s":[50,8],"A7s":[64,0],"A6s":[80,0],"A5s":[72,28],"A4s":[100,0],"A3s":[100,0],"A2s":[60,0],"AKo":[100,0],"KK":[100,0],"KQs":[34,66],"KJs":[52,48],"KTs":[54,46],"K9s":[42,0],"K8s":[8,0],"K7s":[20,0],"K6s":[30,0],"K5s":[46,0],"K4s":[4,0],"AQo":[71,29],"KQo":[100,0],"QQ":[94,6],"QJs":[77,23],"QTs":[38,16],"AJo":[50,0],"KJo":[50,0],"JJ":[58,42],"JTs":[10,29],"ATo":[4,0],"KTo":[6,0],"TT":[47,53],"99":[29,53],"88":[18,45],"77":[10,30],"76s":[6,6],"66":[20,18],"65s":[18,16],"55":[0,8],"54s":[13,22],"44":[0,4]}},"SB":{"e":1,"h":{"AA":[100,0],"AKs":[100,0],"AQs":[86,0],"AJs":[57,0],"ATs":[61,0],"A9s":[78,0],"A8s":[54,0],"A7s":[64,0],"A6s":[80,0],"A5s":[86,0],"A4s":[100,0],"A3s":[100,0],"A2s":[60,0],"AKo":[100,0],"KK":[100,0],"KQs":[67,0],"KJs":[76,0],"KTs":[77,0],"K9s":[42,0],"K8s":[8,0],"K7s":[20,0],"K6s":[30,0],"K5s":[46,0],"K4s":[4,0],"AQo":[86,0],"KQo":[100,0],"QQ":[97,0],"QJs":[88,0],"QTs":[46,0],"AJo":[50,0],"KJo":[50,0],"JJ":[79,0],"JTs":[24,0],"ATo":[4,0],"KTo":[6,0],"TT":[74,0],"99":[56,0],"88":[40,0],"77":[25,0],"76s":[9,0],"66":[28,0],"65s":[25,0],"55":[4,0],"54s":[24,0]}},"BB":{"e":1,"h":{"AA":[100,0],"AKs":[100,0],"AQs":[12,88],"AJs":[0,100],"ATs":[0,100],"A9s":[0,100],"A8s":[0,100],"A7s":[11,89],"A6s":[30,70],"A5s":[12,88],"A4s":[34,66],"A3s":[28,72],"A2s":[45,55],"AKo":[88,12],"KK":[100,0],"KQs":[0,100],"KJs":[0,100],"KTs":[0,100],"K9s":[9,91],"K8s":[18,82],"K7s":[25,75],"K6s":[57,43],"K5s":[44,42],"K4s":[30,31],"K3s":[52,0],"K2s":[70,0],"AQo":[0,100],"KQo":[30,70],"QQ":[62,38],"QJs":[10,90],"QTs":[0,100],"Q9s":[24,76],"Q8s":[22,38],"Q7s":[16,24],"Q6s":[50,0],"Q4s":[13,4],"Q3s":[4,0],"Q2s":[21,0],"AJo":[5,95],"KJo":[26,52],"QJo":[36,20],"JJ":[50,50],"JTs":[0,100],"J9s":[0,100],"J8s":[0,50],"J7s":[23,0],"ATo":[12,80],"KTo":[0,48],"QTo":[0,33],"JTo":[12,28],"TT":[0,100],"T9s":[0,100],"T8s":[0,100],"T7s":[0,46],"A9o":[9,41],"99":[0,100],"98s":[0,100],"97s":[0,100],"96s":[0,50],"A8o":[3,0],"88":[0,100],"87s":[10,90],"86s":[0,100],"85s":[0,24],"A7o":[7,0],"77":[0,98],"76s":[9,91],"75s":[3,97],"A6o":[5,0],"66":[20,80],"65s":[0,100],"64s":[0,100],"A5o":[35,0],"55":[6,94],"54s":[0,100],"53s":[8,92],"A4o":[19,0],"44":[14,86],"43s":[14,85],"A3o":[16,0],"33":[0,98],"22":[0,100]}}},"CO":{"BTN":{"e":0,"h":{"AA":[100,0],"AKs":[100,0],"AQs":[90,10],"AJs":[27,73],"ATs":[17,83],"A9s":[71,29],"A8s":[62,15],"A7s":[78,0],"A6s":[100,0],"A5s":[80,20],"A4s":[100,0],"A3s":[100,0],"A2s":[100,0],"AKo":[100,0],"KK":[100,0],"KQs":[49,51],"KJs":[53,47],"KTs":[45,55],"K9s":[57,0],"K7s":[18,0],"K6s":[46,0],"K5s":[41,0],"K4s":[8,0],"AQo":[74,26],"KQo":[100,0],"QQ":[100,0],"QJs":[67,33],"QTs":[75,25],"AJo":[100,0],"KJo":[100,0],"JJ":[97,3],"JTs":[20,34],"ATo":[9,0],"KTo":[13,0],"TT":[55,45],"99":[26,60],"88":[13,47],"77":[15,32],"76s":[6,0],"66":[30,16],"65s":[11,9],"55":[0,6],"54s":[11,14],"44":[0,3]}},"SB":{"e":1,"h":{"AA":[100,0],"AKs":[100,0],"AQs":[95,0],"AJs":[64,0],"ATs":[58,0],"A9s":[86,0],"A8s":[70,0],"A7s":[78,0],"A6s":[100,0],"A5s":[90,0],"A4s":[100,0],"A3s":[100,0],"A2s":[100,0],"AKo":[100,0],"KK":[100,0],"KQs":[74,0],"KJs":[76,0],"KTs":[72,0],"K9s":[57,0],"K7s":[18,0],"K6s":[46,0],"K5s":[41,0],"K4s":[8,0],"AQo":[87,0],"KQo":[100,0],"QQ":[100,0],"QJs":[84,0],"QTs":[88,0],"AJo":[100,0],"KJo":[100,0],"JJ":[98,0],"JTs":[37,0],"ATo":[9,0],"KTo":[13,0],"TT":[78,0],"99":[56,0],"88":[36,0],"77":[31,0],"76s":[6,0],"66":[38,0],"65s":[16,0],"55":[3,0],"54s":[18,0]}},"BB":{"e":0,"h":{"AA":[100,0],"AKs":[100,0],"AQs":[23,77],"AJs":[0,100],"ATs":[0,100],"A9s":[0,100],"A8s":[0,100],"A7s":[0,100],"A6s":[0,100],"A5s":[22,78],"A4s":[0,100],"A3s":[0,100],"A2s":[19,81],"AKo":[100,0],"KK":[100,0],"KQs":[0,100],"KJs":[0,100],"KTs":[0,100],"K9s":[0,100],"K8s":[0,100],"K7s":[0,100],"K6s":[34,66],"K5s":[15,85],"K4s":[38,62],"K3s":[100,0],"K2s":[100,0],"AQo":[0,100],"KQo":[37,63],"QQ":[100,0],"QJs":[0,100],"QTs":[0,100],"Q9s":[0,100],"Q8s":[25,75],"Q7s":[32,49],"Q6s":[100,0],"Q4s":[26,8],"Q3s":[8,0],"Q2s":[42,0],"AJo":[10,90],"KJo":[52,48],"QJo":[73,27],"JJ":[100,0],"JTs":[0,100],"J9s":[0,100],"J8s":[0,100],"J7s":[46,4],"ATo":[0,100],"KTo":[3,97],"QTo":[0,66],"JTo":[25,57],"TT":[0,100],"T9s":[0,100],"T8s":[0,100],"T7s":[0,86],"A9o":[18,82],"99":[0,100],"98s":[0,100],"97s":[0,100],"96s":[0,100],"A8o":[6,0],"88":[0,100],"87s":[0,100],"86s":[0,100],"85s":[0,48],"A7o":[14,0],"77":[0,100],"76s":[0,100],"75s":[0,100],"A6o":[10,0],"66":[31,69],"65s":[0,100],"64s":[0,100],"A5o":[61,0],"55":[12,88],"54s":[0,100],"53s":[0,100],"A4o":[38,0],"44":[28,72],"43s":[0,100],"A3o":[32,0],"33":[5,95],"22":[0,100]}}},"BTN":{"SB":{"e":1,"h":{"AA":[100,0],"AKs":[100,0],"AQs":[100,0],"AJs":[100,0],"ATs":[100,0],"A9s":[100,0],"A8s":[100,0],"A7s":[100,0],"A6s":[100,0],"A5s":[100,0],"A4s":[100,0],"A3s":[100,0],"A2s":[100,0],"AKo":[100,0],"KK":[100,0],"KQs":[100,0],"KJs":[100,0],"KTs":[100,0],"K9s":[100,0],"K7s":[100,0],"K6s":[100,0],"K5s":[100,0],"K4s":[8,0],"AQo":[100,0],"KQo":[100,0],"QQ":[100,0],"QJs":[100,0],"QTs":[100,0],"AJo":[100,0],"KJo":[100,0],"JJ":[100,0],"JTs":[100,0],"ATo":[9,0],"KTo":[79,0],"TT":[100,0],"99":[100,0],"88":[100,0],"77":[100,0],"76s":[6,0],"66":[100,0],"65s":[100,0],"55":[3,0],"54s":[100,0]}},"BB":{"e":1,"h":{"AA":[100,0],"AKs":[100,0],"AQs":[35,65],"AJs":[0,100],"ATs":[0,100],"A9s":[0,100],"A8s":[0,100],"A7s":[0,100],"A6s":[0,100],"A5s":[34,66],"A4s":[0,100],"A3s":[0,100],"A2s":[29,71],"AKo":[100,0],"KK":[100,0],"KQs":[0,100],"KJs":[0,100],"KTs":[0,100],"K9s":[0,100],"K8s":[0,100],"K7s":[0,100],"K6s":[52,48],"K5s":[23,77],"K4s":[58,42],"K3s":[100,0],"K2s":[100,0],"AQo":[0,100],"KQo":[57,43],"QQ":[100,0],"QJs":[0,100],"QTs":[0,100],"Q9s":[0,100],"Q8s":[38,62],"Q7s":[49,51],"Q6s":[100,0],"Q5s":[0,100],"Q4s":[40,60],"Q3s":[12,88],"Q2s":[64,36],"AJo":[15,85],"KJo":[80,20],"QJo":[100,0],"JJ":[100,0],"JTs":[0,100],"J9s":[0,100],"J8s":[0,100],"J7s":[70,30],"J6s":[0,100],"J5s":[0,100],"ATo":[0,100],"KTo":[5,95],"QTo":[0,100],"JTo":[38,62],"TT":[0,100],"T9s":[0,100],"T8s":[0,100],"T7s":[0,100],"T6s":[0,100],"A9o":[28,72],"K9o":[0,100],"Q9o":[0,100],"J9o":[0,100],"T9o":[0,100],"99":[0,100],"98s":[0,100],"97s":[0,100],"96s":[0,100],"A8o":[9,91],"K8o":[0,41],"88":[0,100],"87s":[0,100],"86s":[0,100],"85s":[0,100],"A7o":[21,79],"77":[0,100],"76s":[0,100],"75s":[0,100],"A6o":[15,85],"66":[47,53],"65s":[0,100],"64s":[0,100],"A5o":[93,7],"55":[18,82],"54s":[0,100],"53s":[0,100],"A4o":[58,42],"44":[43,57],"43s":[0,100],"A3o":[49,51],"33":[8,92],"22":[0,100]}}},"SB":{"BB":{"e":0,"h":{"AA":[100,0],"AKs":[100,0],"AQs":[100,0],"AJs":[100,0],"ATs":[3,97],"A9s":[0,100],"A8s":[0,100],"A7s":[0,100],"A6s":[9,91],"A5s":[100,0],"A4s":[84,16],"A3s":[22,78],"A2s":[50,50],"AKo":[100,0],"KK":[100,0],"KQs":[100,0],"KJs":[100,0],"KTs":[18,82],"K9s":[0,100],"K8s":[0,100],"K7s":[0,100],"K6s":[29,71],"K5s":[16,84],"K4s":[7,93],"K3s":[22,78],"K2s":[6,94],"AQo":[100,0],"KQo":[17,83],"QQ":[100,0],"QJs":[80,20],"QTs":[16,84],"Q9s":[0,100],"Q8s":[0,100],"Q7s":[0,100],"Q6s":[0,100],"Q5s":[0,100],"Q4s":[0,100],"Q3s":[64,36],"Q2s":[100,0],"AJo":[4,96],"KJo":[0,100],"QJo":[0,100],"JJ":[100,0],"JTs":[46,54],"J9s":[13,87],"J8s":[11,89],"J7s":[0,100],"J6s":[59,41],"J5s":[78,22],"J4s":[67,6],"J3s":[39,0],"J2s":[38,0],"ATo":[0,100],"KTo":[25,75],"QTo":[32,68],"JTo":[22,78],"TT":[100,0],"T9s":[85,15],"T8s":[24,76],"T7s":[7,93],"T6s":[46,54],"A9o":[0,100],"K9o":[68,32],"Q9o":[57,0],"J9o":[34,14],"T9o":[11,77],"99":[52,48],"98s":[21,79],"97s":[20,80],"96s":[0,100],"A8o":[0,100],"K8o":[67,0],"J8o":[8,0],"88":[6,94],"87s":[28,72],"86s":[3,97],"85s":[0,100],"A7o":[78,22],"K7o":[21,0],"77":[0,100],"76s":[33,67],"75s":[0,100],"74s":[0,77],"A6o":[96,0],"66":[16,84],"65s":[54,46],"64s":[0,100],"A5o":[22,78],"K5o":[23,0],"55":[3,97],"54s":[56,44],"53s":[0,100],"A4o":[89,11],"44":[13,87],"43s":[0,100],"A3o":[90,0],"33":[3,97],"A2o":[60,0],"22":[0,100]}}}};
 const R='AKQJT98765432', SU='shdc', SYM={s:'♠',h:'♥',d:'♦',c:'♣'};
 const POS=['UTG','HJ','CO','BTN','SB','BB'], RFI=['UTG','HJ','CO','BTN','SB'];
 const ROUND=20, KEY='opener-history';
@@ -225,45 +244,83 @@ function openPct(p){
   return t/1326*100;
 }
 
-/* ================= lookup ================= */
-let pos='BTN', picks=[];
+/* ================= lookup: shared seat and cards across both lookup pages ================= */
+let pos='BTN', picks=[], raiser=null;
+const OPENERS=['UTG','HJ','CO','BTN','SB'];
 function nextPos(p){const i=POS.indexOf(p);return POS[(i-1+POS.length)%POS.length]}
-$('pos').innerHTML=POS.map(p=>`<button data-p="${p}" aria-pressed="${p===pos}">${p}</button>`).join('');
-$('pos').onpointerdown=e=>{const b=e.target.closest('button');if(b)setPos(b.dataset.p)};
-function setPos(p){pos=p;document.querySelectorAll('#pos button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.p===pos));renderLookup()}
-$('pad').innerHTML=[...R].map(r=>`<button data-r="${r}">${r==='T'?'10':r}</button>`).join('')+`<button class="clear" data-clear>Clear</button>`;
-$('pad').onpointerdown=e=>{
-  const b=e.target.closest('button'); if(!b) return; e.preventDefault();
-  if(b.dataset.clear!==undefined){picks=[];renderLookup();return}
-  pick(b.dataset.r);
-};
-$('next').onpointerdown=e=>{e.preventDefault();nextHand()};
-function pick(r){if(picks.length>=2)picks=[];picks.push(r);renderLookup()}
-function nextHand(){picks=[];setPos(nextPos(pos))}
-function lookLabel(p,a){
-  if(a==='r') return 'Raise<span>'+(p==='SB'?'3.5bb':'2.5bb')+'</span>';
-  return a==='c'?'Limp':'Fold';
+function wirePad(el){
+  el.innerHTML=[...R].map(r=>`<button data-r="${r}">${r==='T'?'10':r}</button>`).join('')+`<button class="clear" data-clear>Clear</button>`;
+  el.onpointerdown=e=>{
+    const b=e.target.closest('button'); if(!b) return; e.preventDefault();
+    if(b.dataset.clear!==undefined){picks=[];renderLook();return}
+    pick(b.dataset.r);
+  };
 }
-function lookRow(h,sub){
-  const f=freq(pos,h), best=primary(f), cls={r:'raise',c:'call',f:'fold'}[best];
-  const mix=Math.max(f.r,f.c,f.f)>=97?'<div class="mix">Always</div>':mixHTML(f);
-  return `<div class="row ${cls}"><div class="hand">${h.replace(/[so]$/,'')}<small>${sub}</small></div><div class="verdict">${lookLabel(pos,best)}</div>${mix}</div>`;
+wirePad($('pad')); wirePad($('rpad'));
+$('pos').innerHTML=$('ypos').innerHTML=POS.map(p=>`<button data-p="${p}">${p}</button>`).join('');
+$('rpos').innerHTML=OPENERS.map(p=>`<button data-o="${p}">${p}</button>`).join('');
+[$('pos'),$('ypos')].forEach(el=>el.onpointerdown=e=>{const b=e.target.closest('button');if(b){e.preventDefault();setPos(b.dataset.p)}});
+$('rpos').onpointerdown=e=>{const b=e.target.closest('button');if(b&&!b.disabled){e.preventDefault();setRaiser(b.dataset.o)}};
+$('next').onpointerdown=$('r-next').onpointerdown=e=>{e.preventDefault();nextHand()};
+function setPos(p){pos=p; if(raiser&&POS.indexOf(raiser)>=POS.indexOf(pos)) raiser=null; renderLook()}
+function setRaiser(o){if(POS.indexOf(o)<POS.indexOf(pos)){raiser=raiser===o?null:o;renderLook()}}
+function pick(r){if(picks.length>=2)picks=[];picks.push(r);renderLook()}
+function nextHand(){picks=[];raiser=null;setPos(nextPos(pos))}
+
+function actionRow(h,sub,f,lab){
+  const best=primary(f), cls={r:'raise',c:'call',f:'fold'}[best];
+  const mix=Math.max(f.r,f.c,f.f)>=97?'<div class="mix">Always</div>':mixHTMLW(f,lab.words);
+  return `<div class="row ${cls}"><div class="hand">${h.replace(/[so]$/,'')}<small>${sub}</small></div><div class="verdict">${lab[best]}</div>${mix}</div>`;
 }
-function renderLookup(){
-  $('next').innerHTML='<span>Next hand</span><b>'+nextPos(pos)+'</b>';
-  document.querySelectorAll('#pad button[data-r]').forEach(b=>{
+function handRows(g,lab){
+  const [a,b]=[...picks].sort((x,y)=>R.indexOf(x)-R.indexOf(y));
+  return a===b?actionRow(a+b,'Pair',g(a+b),lab):actionRow(a+b+'s','Suited',g(a+b+'s'),lab)+actionRow(a+b+'o','Offsuit',g(a+b+'o'),lab);
+}
+function pickHint(top){
+  if(!picks.length) return `<div class="hint"><div><strong>${top}</strong>Tap your two card ranks</div></div>`;
+  return `<div class="hint"><div><strong>${picks[0]==='T'?'10':picks[0]} ?</strong>Tap the second rank</div></div>`;
+}
+function renderLook(){
+  const nx='<span>Next hand</span><b>'+nextPos(pos)+'</b>';
+  $('next').innerHTML=nx; $('r-next').innerHTML=nx;
+  document.querySelectorAll('.pad button[data-r]').forEach(b=>{
     const n=picks.filter(x=>x===b.dataset.r).length;
     b.classList.toggle('sel',n>0); b.dataset.n=n>1?'×2':'';
   });
+  document.querySelectorAll('#pos button,#ypos button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.p===pos));
+  renderLookup(); renderVsr();
+}
+
+/* ---- folded to you ---- */
+function renderLookup(){
   const bb=pos==='BB';
   $('size').innerHTML=bb?'Big blind':pos==='SB'?'Open <b>3.5bb</b> or limp':'Open <b>2.5bb</b>';
   $('pct').innerHTML=bb?'':'Opens <b>'+openPct(pos).toFixed(0)+'%</b>';
   const res=$('result');
   if(bb){res.innerHTML='<div class="hint">Nothing to open from the big blind. If everyone folds, you win the blinds.</div>';return}
-  if(!picks.length){res.innerHTML='<div class="hint"><div><strong>'+pos+'</strong>Tap your two card ranks</div></div>';return}
-  if(picks.length===1){res.innerHTML='<div class="hint"><div><strong>'+(picks[0]==='T'?'10':picks[0])+' ?</strong>Tap the second rank</div></div>';return}
-  const [a,b]=[...picks].sort((x,y)=>R.indexOf(x)-R.indexOf(y));
-  res.innerHTML=a===b?lookRow(a+b,'Pair'):lookRow(a+b+'s','Suited')+lookRow(a+b+'o','Offsuit');
+  if(picks.length<2){res.innerHTML=pickHint(pos);return}
+  const lab={r:'Raise<span>'+(pos==='SB'?'3.5bb':'2.5bb')+'</span>',c:'Limp',f:'Fold',words:{r:'raise',c:'limp'}};
+  res.innerHTML=handRows(h=>freq(pos,h),lab);
+}
+
+/* ---- facing a raise ---- */
+// 3-bet sizes: in position 8bb, BB 13.5bb, SB 11bb (estimate), BB vs a 3.5bb SB open 10.5bb
+function size3(o,y){return o==='SB'?'10.5bb':y==='BB'?'13.5bb':y==='SB'?'11bb':'8bb'}
+function renderVsr(){
+  const yi=POS.indexOf(pos), res=$('r-result');
+  document.querySelectorAll('#rpos button').forEach(b=>{
+    b.disabled=POS.indexOf(b.dataset.o)>=yi; b.setAttribute('aria-pressed',b.dataset.o===raiser);
+  });
+  if(pos==='UTG'){$('r-size').innerHTML='Under the gun';$('r-est').innerHTML='';
+    res.innerHTML='<div class="hint">Nobody acts before UTG, so there is no raise to face. Use Folded to you.</div>';return}
+  if(!raiser){$('r-size').innerHTML='You are on the <b>'+pos+'</b>';$('r-est').innerHTML='';
+    res.innerHTML=`<div class="hint"><div><strong>${pos}</strong>Tap the raiser's seat</div></div>`;return}
+  const spot=VS_ALL[raiser][pos], sz=size3(raiser,pos);
+  $('r-size').innerHTML=`${raiser} opens <b>${raiser==='SB'?'3.5bb':'2.5bb'}</b>, 3-bet to <b>${sz}</b>`;
+  $('r-est').innerHTML=spot.e?'<span class="est">Estimated</span>':'Solver chart';
+  if(picks.length<2){res.innerHTML=pickHint('vs '+raiser);return}
+  const g=h=>{const v=spot.h[h];return v?{r:v[0],c:v[1],f:Math.max(0,100-v[0]-v[1])}:{r:0,c:0,f:100}};
+  res.innerHTML=handRows(g,{r:'3-bet<span>'+sz+'</span>',c:'Call',f:'Fold',words:{r:'3-bet',c:'call'}});
 }
 
 /* ================= trainer ================= */
@@ -372,21 +429,26 @@ async function saveHist(m){
 }
 function storeNote(){return (LS||window.storage)?'':'<p class="empty">Scores are kept while this page stays open. Add the app to your Home Screen from its web address to keep them.</p>'}
 
-/* ---- page switch ---- */
+/* ---- page switch: two groups, each with its own pages ---- */
+const GROUPS={look:[['lookup','Folded to you'],['vsr','Facing a raise']],train:[['open','Open'],['vsUTG','vs UTG'],['vsCO','vs CO'],['vsSB','vs SB']]};
+const lastPage={look:'lookup',train:'open'};
 let view='lookup', timer=null, resetArmed=false;
-$('tabs').onclick=e=>{const b=e.target.closest('button');if(b)showTab(b.dataset.v)};
+$('tabs').onclick=e=>{const b=e.target.closest('button');if(b)showTab(lastPage[b.dataset.g])};
+$('sub').onclick=e=>{const b=e.target.closest('button');if(b)showTab(b.dataset.v)};
 function showTab(v){
   clearTimeout(timer);
   view=v;
-  document.querySelectorAll('#tabs button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===v));
-  if(v==='lookup'){show('v-lookup');return}
+  const g=GROUPS.look.some(x=>x[0]===v)?'look':'train'; lastPage[g]=v;
+  document.querySelectorAll('#tabs button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.g===g));
+  $('sub').innerHTML=GROUPS[g].map(([k,l])=>`<button data-v="${k}" aria-pressed="${k===v}">${l}</button>`).join('');
+  if(v==='lookup'||v==='vsr'){renderLook();show(v==='lookup'?'v-lookup':'v-vsr');return}
   mode=v; resetArmed=false;
   const sess=sessions[mode];
   if(!sess){renderHome();show('v-home')}
   else if(sess.done){$('done-body').innerHTML=sess.doneHTML;show('v-done')}
   else{ if(sess.answered){sess.i++;sess.cur=null} drawDeal(); show('v-drill') }
 }
-function show(id){['v-lookup','v-home','v-drill','v-done'].forEach(x=>$(x).hidden=x!==id)}
+function show(id){['v-lookup','v-vsr','v-home','v-drill','v-done'].forEach(x=>$(x).hidden=x!==id)}
 
 /* ---- home ---- */
 function renderHome(){
@@ -513,12 +575,13 @@ $('to-home').onclick=()=>{sessions[mode]=null;renderHome();show('v-home')};
 /* ================= keyboard ================= */
 document.addEventListener('keydown',e=>{
   const k=e.key.toUpperCase();
-  if(!$('v-lookup').hidden){
+  if(!$('v-lookup').hidden||!$('v-vsr').hidden){
     if(e.key==='Enter'||k==='N'){e.preventDefault();nextHand();return}
+    if(!$('v-vsr').hidden){const o={U:'UTG',H:'HJ',C:'CO',B:'BTN',S:'SB'}[k]; if(o){setRaiser(o);return}}
     if(k==='0'||k==='1'){pick('T');return}
     if(R.includes(k)){pick(k);return}
     if(e.key==='ArrowRight'||e.key==='ArrowLeft'){const i=POS.indexOf(pos),d=e.key==='ArrowRight'?1:-1;setPos(POS[(i+d+POS.length)%POS.length]);return}
-    if(e.key==='Escape'||e.key==='Backspace'||e.key===' '){e.preventDefault();picks=[];renderLookup()}
+    if(e.key==='Escape'||e.key==='Backspace'||e.key===' '){e.preventDefault();picks=[];renderLook()}
   } else if(!$('v-drill').hidden){
     const sess=sessions[mode];
     if(sess&&!sess.answered&&['1','2','3'].includes(e.key)){answer(S().options(sess.cur.pos)[+e.key-1][0]);return}
@@ -526,8 +589,9 @@ document.addEventListener('keydown',e=>{
   } else if(e.key==='Enter'&&(!$('v-home').hidden||!$('v-done').hidden)){e.preventDefault();startSession()}
 });
 
-renderLookup(); loadHist();
+showTab('lookup'); loadHist();
 </script>
+
 
 </body>
 </html>
