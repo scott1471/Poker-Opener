@@ -35,8 +35,9 @@ button:focus-visible{outline:3px solid #fff;outline-offset:2px}
 .tabs button{flex:1 1 auto;min-width:0;padding:0 6px;height:36px;white-space:nowrap;border-radius:8px;font-size:16px;font-weight:600;color:var(--muted)}
 .tabs button[aria-pressed="true"]{background:var(--line);color:var(--text)}
 
-.sub{display:flex;gap:6px;flex-shrink:0;margin-top:-4px}
-.sub button{flex:1 1 0;min-width:0;height:32px;border-radius:16px;border:1px solid var(--line);font-size:15px;font-weight:600;color:var(--muted);white-space:nowrap}
+.sub{display:flex;gap:3px;flex-shrink:0;margin-top:-4px;overflow-x:auto;scrollbar-width:none}
+.sub::-webkit-scrollbar{display:none}
+.sub button{flex:1 0 auto;padding:0 4px;height:32px;border-radius:16px;border:1px solid var(--line);font-size:13px;font-weight:600;color:var(--muted);white-space:nowrap}
 .sub button[aria-pressed="true"]{border-color:var(--muted);color:var(--text);background:var(--panel)}
 
 /* ---------- lookup ---------- */
@@ -46,7 +47,10 @@ button:focus-visible{outline:3px solid #fff;outline-offset:2px}
 .pos button[aria-pressed="true"]{background:var(--text);color:var(--ink);border-color:var(--text)}
 .prow{display:grid;grid-template-columns:54px 1fr;gap:6px;align-items:center}
 .plab{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
-#v-vsr .pos button{height:44px;font-size:17px}
+#v-vsr .pos button,#v-vs3 .pos button{height:44px;font-size:17px}
+.rpos button:disabled{opacity:.25;cursor:default}
+.row.out{background:var(--panel);border:1px solid var(--line);color:var(--muted)}
+.row.out .verdict{font-size:24px}
 .rpos button[aria-pressed="true"]{background:rgba(224,70,76,.18);color:var(--text);border-color:var(--raise);box-shadow:inset 0 0 0 1.5px var(--raise)}
 .rpos button:disabled{opacity:.25;cursor:default}
 .est{color:var(--gold);font-weight:700}
@@ -127,6 +131,9 @@ button:focus-visible{outline:3px solid #fff;outline-offset:2px}
 .cd-act{font-size:24px;font-weight:800}
 .cd-act.r{color:#ff7d81} .cd-act.c{color:#5fd28f} .cd-act.f{color:#7fa8e6}
 .cdetail .mix{font-size:15px}
+
+.grid button.out{background:#1b242e;color:#4a5866;text-shadow:none}
+.cd-note{color:var(--muted);font-size:14px}
 
 /* ---------- trainer: home ---------- */
 .scroll{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:14px;padding:2px}
@@ -234,6 +241,16 @@ h1{font-family:var(--serif);font-size:30px;line-height:1.1;font-weight:700}
     <div class="scroll" id="leaks-body"></div>
   </section>
 
+  <!-- LOOKUP: facing a 3-bet -->
+  <section class="view" id="v-vs3" hidden>
+    <div class="prow"><span class="plab">3-bet</span><div class="pos rpos" id="tpos" role="group" aria-label="3-bettor's position"></div></div>
+    <div class="prow"><span class="plab">You</span><div class="pos" id="ypos3" role="group" aria-label="Your position"></div></div>
+    <div class="meta"><span id="t-size"></span><span id="t-est"></span></div>
+    <div class="result" id="t-result" aria-live="polite"></div>
+    <div class="pad" id="tpad" role="group" aria-label="Card ranks"></div>
+    <button class="big" id="t-next"></button>
+  </section>
+
   <!-- CHARTS -->
   <section class="view" id="v-chart" hidden>
     <div class="scroll" style="gap:10px">
@@ -320,18 +337,19 @@ function wirePad(el){
     pick(b.dataset.r);
   };
 }
-wirePad($('pad')); wirePad($('rpad'));
-$('pos').innerHTML=$('ypos').innerHTML=POS.map(p=>`<button data-p="${p}">${p}</button>`).join('');
+wirePad($('pad')); wirePad($('rpad')); wirePad($('tpad'));
+$('pos').innerHTML=$('ypos').innerHTML=$('ypos3').innerHTML=POS.map(p=>`<button data-p="${p}">${p}</button>`).join('');
 $('rpos').innerHTML=OPENERS.map(p=>`<button data-o="${p}">${p}</button>`).join('');
-[$('pos'),$('ypos')].forEach(el=>el.onpointerdown=e=>{const b=e.target.closest('button');if(b){e.preventDefault();setPos(b.dataset.p)}});
+[$('pos'),$('ypos'),$('ypos3')].forEach(el=>el.onpointerdown=e=>{const b=e.target.closest('button');if(b){e.preventDefault();setPos(b.dataset.p)}});
 $('rpos').onpointerdown=e=>{const b=e.target.closest('button');if(b&&!b.disabled){e.preventDefault();setRaiser(b.dataset.o)}};
-$('next').onpointerdown=$('r-next').onpointerdown=e=>{e.preventDefault();nextHand()};
-function setPos(p){pos=p; if(raiser&&POS.indexOf(raiser)>=POS.indexOf(pos)) raiser=null; renderLook()}
+$('next').onpointerdown=$('r-next').onpointerdown=$('t-next').onpointerdown=e=>{e.preventDefault();nextHand()};
+function setPos(p){pos=p; if(raiser&&POS.indexOf(raiser)>=POS.indexOf(pos)) raiser=null; if(tb3&&!M3[pos+'-'+tb3]) tb3=null; renderLook()}
 function setRaiser(o){if(POS.indexOf(o)<POS.indexOf(pos)){raiser=raiser===o?null:o;renderLook()}}
 function pick(r){if(picks.length>=2)picks=[];picks.push(r);renderLook()}
-function nextHand(){picks=[];raiser=null;setPos(nextPos(pos))}
+function nextHand(){picks=[];raiser=null;tb3=null;setPos(nextPos(pos))}
 
 function actionRow(h,sub,f,lab){
+  if(!f) return `<div class="row out"><div class="hand">${h.replace(/[so]$/,'')}<small>${sub}</small></div><div class="verdict">Not in your opening range</div><div></div></div>`;
   const best=primary(f), cls={r:'raise',c:'call',f:'fold'}[best];
   const mix=Math.max(f.r,f.c,f.f)>=97?'<div class="mix">Always</div>':mixHTMLW(f,lab.words);
   return `<div class="row ${cls}"><div class="hand">${h.replace(/[so]$/,'')}<small>${sub}</small></div><div class="verdict">${lab[best]}</div>${mix}</div>`;
@@ -346,13 +364,31 @@ function pickHint(top){
 }
 function renderLook(){
   const nx='<span>Next hand</span><b>'+nextPos(pos)+'</b>';
-  $('next').innerHTML=nx; $('r-next').innerHTML=nx;
+  $('next').innerHTML=nx; $('r-next').innerHTML=nx; $('t-next').innerHTML=nx;
   document.querySelectorAll('.pad button[data-r]').forEach(b=>{
     const n=picks.filter(x=>x===b.dataset.r).length;
     b.classList.toggle('sel',n>0); b.dataset.n=n>1?'×2':'';
   });
-  document.querySelectorAll('#pos button,#ypos button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.p===pos));
-  renderLookup(); renderVsr();
+  document.querySelectorAll('#pos button,#ypos button,#ypos3 button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.p===pos));
+  renderLookup(); renderVsr(); renderVs3();
+}
+
+/* ---- facing a 3-bet ---- */
+let tb3=null;
+$('tpos').innerHTML=POS.map(p=>p==='UTG'?'<span></span>':`<button data-t="${p}">${p}</button>`).join('');
+$('tpos').onpointerdown=e=>{const b=e.target.closest('button');if(b&&!b.disabled){e.preventDefault();tb3=tb3===b.dataset.t?null:b.dataset.t;renderLook()}};
+function renderVs3(){
+  const res=$('t-result'), have=tbFor(pos);
+  document.querySelectorAll('#tpos button').forEach(b=>{b.disabled=!have.includes(b.dataset.t);b.setAttribute('aria-pressed',b.dataset.t===tb3)});
+  if(!have.length){$('t-size').innerHTML='You are on the <b>'+pos+'</b>';$('t-est').innerHTML='';
+    res.innerHTML=`<div class="hint">No 3-bet charts for the ${pos} yet. Charts cover UTG, BTN and SB opens.</div>`;return}
+  if(!tb3){$('t-size').innerHTML='You opened on the <b>'+pos+'</b>';$('t-est').innerHTML='';
+    res.innerHTML=`<div class="hint"><div><strong>${pos}</strong>Tap the 3-bettor's seat</div></div>`;return}
+  const k=pos+'-'+tb3, m=M3[k];
+  $('t-size').innerHTML=`${tb3} 3-bets to <b>${m.three}</b>, 4-bet to <b>${m.four}</b>`;
+  $('t-est').innerHTML='Solver chart';
+  if(picks.length<2){res.innerHTML=pickHint('vs '+tb3);return}
+  res.innerHTML=handRows(h=>f3(k,h),{r:'4-bet<span>'+m.four+'</span>',c:'Call',f:'Fold',words:{r:'4-bet',c:'call'}});
 }
 
 /* ---- folded to you ---- */
@@ -410,6 +446,40 @@ function vsSet(raiser,positions,D,key,seats,open='2.5bb',size=p=>p==='BB'?'13.5b
     caption:p=>`${raiser} opens ${open}. You're on the ${p}.`
   };
 }
+// Facing a 3-bet after you open. Spot ids are "opener-3bettor".
+// Value per hand: [4-bet %, call %, share of the hand in your opening range (0-1), all-in % within the 4-bet]
+const VS3={"UTG-HJ":{"AA":[100,0,1],"AKs":[100,0,1],"AQs":[0,100,1],"AJs":[48,24,1],"ATs":[27,21,1],"A9s":[10,0,1],"A8s":[8,0,1],"A7s":[17,0,1],"A6s":[7,0,1],"A5s":[46,13,1],"A4s":[33,0,1],"A3s":[3,0,1],"A2s":[0,0,1],"AKo":[81,19,1,54],"KK":[100,0,1,7],"KQs":[31,25,1],"KJs":[86,14,1],"KTs":[88,0,1],"K9s":[24,0,1],"K8s":[0,0,1],"K7s":[9,0,1],"K6s":[19,0,0.69],"K5s":[0,0,1],"AQo":[32,0,1],"KQo":[0,0,1],"QQ":[50,50,1,28],"QJs":[0,0,1],"QTs":[0,0,1],"Q9s":[0,0,0.83],"AJo":[0,0,1],"KJo":[0,0,1],"QJo":[0,0,0.15],"JJ":[9,84,1],"JTs":[0,21,1],"ATo":[0,0,1],"KTo":[0,0,0.58],"TT":[3,28,1],"T9s":[0,100,0.07],"A9o":[0,0,0.03],"99":[0,34,1],"88":[0,37,1],"77":[0,50,0.71],"66":[0,100,0.24],"65s":[0,100,0.22],"A5o":[0,0,0.19],"55":[0,100,0.15],"54s":[0,100,0.14]},"UTG-BTN":{"AA":[100,0,1],"AKs":[100,0,1],"AQs":[0,100,1],"AJs":[68,32,1],"ATs":[0,32,1],"A9s":[9,0,1],"A8s":[29,0,1],"A7s":[30,0,1],"A6s":[13,0,1],"A5s":[29,16,1],"A4s":[43,0,1],"A3s":[19,0,1],"A2s":[0,0,1],"AKo":[77,23,1,32],"KK":[100,0,1,5],"KQs":[49,38,1],"KJs":[98,0,1],"KTs":[100,0,1],"K9s":[22,0,1],"K8s":[7,0,1],"K7s":[14,0,1],"K6s":[18,0,0.69],"K5s":[0,0,1],"AQo":[42,0,1],"KQo":[0,0,1],"QQ":[65,35,1,11],"QJs":[0,0,1],"QTs":[0,0,1],"Q9s":[0,0,0.83],"AJo":[0,0,1],"KJo":[0,0,1],"QJo":[0,0,0.15],"JJ":[16,84,1],"JTs":[0,25,1],"ATo":[0,0,1],"KTo":[0,0,0.58],"TT":[0,44,1],"T9s":[0,100,0.07],"A9o":[0,0,0.03],"99":[0,40,1],"88":[0,38,1],"77":[0,48,0.71],"66":[0,100,0.24],"65s":[0,100,0.22],"A5o":[0,0,0.19],"55":[0,100,0.15],"54s":[0,100,0.14]},"UTG-SB":{"AA":[100,0,1],"AKs":[100,0,1],"AQs":[0,100,1],"AJs":[0,41,1],"ATs":[0,33,1],"A9s":[6,0,1],"A8s":[26,0,1],"A7s":[20,0,1],"A6s":[3,0,1],"A5s":[9,37,1],"A4s":[32,0,1],"A3s":[53,0,1],"A2s":[21,0,1],"AKo":[50,50,1,26],"KK":[100,0,1,16],"KQs":[7,41,1],"KJs":[55,22,1],"KTs":[67,0,1],"K9s":[24,0,1],"K8s":[13,0,1],"K7s":[21,0,1],"K6s":[40,0,0.69],"K5s":[0,0,1],"AQo":[16,0,1],"KQo":[0,0,1],"QQ":[21,79,1],"QJs":[0,0,1],"QTs":[0,0,1],"Q9s":[0,0,0.83],"AJo":[0,0,1],"KJo":[0,0,1],"QJo":[0,0,0.15],"JJ":[0,95,1],"JTs":[0,55,1],"ATo":[0,0,1],"KTo":[0,0,0.58],"TT":[0,38,1],"T9s":[0,100,0.07],"A9o":[0,0,0.03],"99":[0,25,1],"88":[0,22,1],"77":[0,35,0.71],"66":[0,56,0.24],"65s":[0,100,0.22],"A5o":[0,0,0.19],"55":[0,49,0.15],"54s":[0,100,0.14]},"BTN-SB":{"AA":[100,0,1],"AKs":[100,0,1],"AQs":[62,38,1],"AJs":[0,100,1],"ATs":[0,100,1],"A9s":[52,48,1],"A8s":[100,0,1],"A7s":[92,0,1],"A6s":[55,0,1],"A5s":[63,33,1],"A4s":[15,4,1],"A3s":[0,0,1],"A2s":[7,0,1],"AKo":[100,0,1],"KK":[100,0,1],"KQs":[0,100,1],"KJs":[0,100,1],"KTs":[0,100,1],"K9s":[54,0,1],"K8s":[0,0,1],"K7s":[0,0,1],"K6s":[0,0,1],"K5s":[0,0,1],"K4s":[0,0,1],"K3s":[0,0,1],"K2s":[0,0,1],"AQo":[9,91,1],"KQo":[100,0,1],"QQ":[100,0,1],"QJs":[22,68,1],"QTs":[30,32,1],"Q9s":[0,0,1],"Q8s":[0,0,1],"Q7s":[0,0,1],"Q6s":[0,0,1],"Q5s":[0,0,1],"Q4s":[0,0,1],"Q3s":[0,0,1],"AJo":[57,0,1],"KJo":[0,0,1],"QJo":[0,0,1],"JJ":[100,0,1],"JTs":[0,71,1],"J9s":[0,0,1],"J8s":[0,0,1],"J7s":[0,0,1],"J6s":[0,0,1],"J5s":[0,0,1],"ATo":[0,0,1],"KTo":[0,0,1],"QTo":[0,0,1],"JTo":[0,0,1],"TT":[78,22,1],"T9s":[0,53,1],"T8s":[0,0,1],"T7s":[0,0,1],"T6s":[0,0,1],"A9o":[0,0,1],"K9o":[0,0,1],"Q9o":[0,0,1],"J9o":[0,0,1],"T9o":[0,0,1],"99":[0,100,1],"98s":[0,33,1],"97s":[0,0,1],"A8o":[0,0,1],"K8o":[0,0,1],"T8o":[0,0,0.17],"88":[0,100,1],"87s":[0,0,1],"86s":[0,0,1],"A7o":[0,0,1],"K7o":[0,0,0.15],"77":[0,52,1],"76s":[0,13,1],"A6o":[0,0,1],"66":[0,49,1],"65s":[0,48,1],"A5o":[0,0,1],"55":[0,32,1],"54s":[0,88,0.64],"A4o":[0,0,1],"44":[0,19,1],"A3o":[0,0,1],"33":[0,15,1],"A2o":[0,0,0.05],"22":[0,0,0.32]},"SB-BB":{"AA":[100,0,1],"AKs":[100,0,1],"AQs":[100,0,1],"AJs":[4,96,1],"ATs":[0,100,1],"A9s":[0,100,0.68],"A8s":[24,76,0.46],"A7s":[68,32,0.29],"A6s":[100,0,0.34],"A5s":[55,45,0.53],"A4s":[100,0,0.27],"A3s":[100,0,0.32],"A2s":[57,0,0.63],"AKo":[100,0,0.83,18],"KK":[100,0,1],"KQs":[0,100,1],"KJs":[81,19,1,81],"KTs":[13,87,0.61],"K9s":[0,100,0.24],"K8s":[77,0,0.29],"K7s":[33,0,0.61],"K6s":[0,0,1],"K5s":[37,0,1],"K4s":[0,0,1],"K3s":[0,0,1],"K2s":[0,0,1],"AQo":[100,0,0.81,43],"KQo":[100,0,0.63],"QQ":[100,0,1],"QJs":[0,100,0.64],"QTs":[21,79,0.32],"Q9s":[100,0,0.22],"Q8s":[0,0,0.71],"Q7s":[0,0,1],"Q6s":[0,0,1],"Q5s":[0,0,1],"Q4s":[0,0,1],"Q3s":[0,0,1],"Q2s":[0,0,0.71],"AJo":[100,0,0.76],"KJo":[57,0,0.58],"QJo":[28,0,0.71],"JJ":[100,0,1],"JTs":[0,99,0.41],"J9s":[36,64,0.15],"J8s":[0,0,0.83],"J7s":[0,0,1],"J6s":[0,0,0.56],"J5s":[0,0,0.49],"J4s":[0,0,0.66],"J3s":[0,0,0.19],"ATo":[100,0,0.73],"KTo":[28,0,0.81],"QTo":[10,0,1],"JTo":[11,0,1],"TT":[100,0,1,13],"T9s":[60,40,0.41],"T8s":[64,9,0.56],"T7s":[0,0,1],"T6s":[0,0,0.61],"A9o":[0,0,1],"K9o":[0,0,1],"Q9o":[0,0,0.69],"J9o":[0,0,0.64],"T9o":[0,0,0.75],"99":[48,52,0.56,18],"98s":[0,5,0.66],"97s":[0,0,1],"96s":[0,0,1],"A8o":[0,0,1],"K8o":[0,0,0.56],"T8o":[0,0,0.25],"98o":[0,0,0.61],"88":[16,84,0.47,5],"87s":[0,17,0.78],"86s":[0,0,1],"85s":[0,0,0.78],"A7o":[0,0,1],"K7o":[0,0,0.32],"77":[4,96,0.36],"76s":[0,11,0.75],"75s":[0,0,1],"A6o":[0,0,1],"66":[11,89,0.49,4],"65s":[0,6,0.8],"64s":[0,0,0.53],"A5o":[0,0,1],"55":[28,72,0.47],"54s":[0,3,1],"53s":[0,0,0.46],"A4o":[0,0,1],"44":[0,43,0.63],"A3o":[0,0,0.8],"33":[0,8,0.83],"A2o":[0,0,0.46],"22":[0,0,1]}};
+const M3={
+  'UTG-HJ':{you:'UTG',tb:'HJ',open:'2.5bb',three:'8bb',four:'21.5bb'},
+  'UTG-BTN':{you:'UTG',tb:'BTN',open:'2.5bb',three:'8bb',four:'21.5bb'},
+  'UTG-SB':{you:'UTG',tb:'SB',open:'2.5bb',three:'11bb',four:'23bb'},
+  'BTN-SB':{you:'BTN',tb:'SB',open:'2.5bb',three:'11bb',four:'23bb'},
+  'SB-BB':{you:'SB',tb:'BB',open:'3.5bb',three:'10.5bb',four:'22bb'}
+};
+function f3(p,h){const v=VS3[p]&&VS3[p][h];return v?{r:v[0],c:v[1],f:Math.max(0,100-v[0]-v[1]),w:v[2],a:v[3]||0}:null}
+function vs3Set(){
+  const spots=Object.keys(M3);
+  return {
+    title:'Facing a 3-bet', key:'vs3-history', positions:spots, three:true,
+    lede:'You open, get 3-bet, and it is back on you. Fold, call or 4-bet, 20 hands a round. Only hands from your opening range are dealt.',
+    f:(p,h)=>f3(p,h)||{r:0,c:0,f:100}, inRange:(p,h)=>!!f3(p,h), words:{r:'4-bet',c:'call'},
+    options:p=>[['f','Fold',''],['c','Call',''],['r','4-bet','to '+M3[p].four]],
+    act:(p,a)=>a==='f'?'Fold':a==='c'?'Call':'4-bet to '+M3[p].four,
+    seats:p=>POS.map(x=>x===M3[p].you?['you']:x===M3[p].tb?['raise',M3[p].three]:['fold']),
+    caption:p=>`You opened ${M3[p].open} on the ${M3[p].you}. ${M3[p].tb} 3-bets to ${M3[p].three}.`,
+    label:p=>`${M3[p].you} vs ${M3[p].tb} 3-bet`, posLabel:p=>`${M3[p].you} vs ${M3[p].tb}`,
+    deal(){
+      const p=spots[rnd(spots.length)];
+      let h;
+      if(Math.random()<0.5&&this.edge[p].length) h=this.edge[p][rnd(this.edge[p].length)];
+      else { // weighted by how often the hand is in your opening range
+        const hs=Object.entries(VS3[p]), tot=hs.reduce((a,[k,v])=>a+v[2]*(k.length===2?6:k[2]==='s'?4:12),0);
+        let r=Math.random()*tot; for(const [k,v] of hs){r-=v[2]*(k.length===2?6:k[2]==='s'?4:12); if(r<=0){h=k;break}} h=h||hs[0][0];
+      }
+      return {pos:p,...comboFor(h)};
+    }
+  };
+}
 // Each training tab is one drill set
 const SETS={
   open:{
@@ -424,7 +494,8 @@ const SETS={
   },
   vsUTG:vsSet('UTG',['HJ','BTN','BB'],VS_UTG,'vsutg-history','the HJ, BTN or BB'),
   vsCO:vsSet('CO',['BTN','BB'],VS_CO,'vsco-history','the BTN or BB'),
-  vsSB:vsSet('SB',['BB'],VS_SB,'vssb-history','the BB','3.5bb',()=>'10.5bb')
+  vsSB:vsSet('SB',['BB'],VS_SB,'vssb-history','the BB','3.5bb',()=>'10.5bb'),
+  vs3:vs3Set()
 };
 let mode='open';
 const S=()=>SETS[mode];
@@ -443,10 +514,11 @@ Object.values(SETS).forEach(set=>{
   set.positions.forEach(p=>{
     set.edge[p]=[];
     for(let i=0;i<13;i++)for(let j=0;j<13;j++){
-      const h=nameAt(i,j), f=set.f(p,h), a=primary(f);
+      const h=nameAt(i,j), f=set.f(p,h), a=primary(f), inR=hh=>!set.inRange||set.inRange(p,hh);
+      if(!inR(h)) continue;
       let edge=Math.max(f.r,f.c,f.f)<97;
       [[1,0],[-1,0],[0,1],[0,-1]].forEach(([di,dj])=>{
-        const x=i+di,y=j+dj; if(x<0||y<0||x>12||y>12) return;
+        const x=i+di,y=j+dj; if(x<0||y<0||x>12||y>12||!inR(nameAt(x,y))) return;
         if(primary(set.f(p,nameAt(x,y)))!==a) edge=true;
       });
       if(edge) set.edge[p].push(h);
@@ -466,6 +538,7 @@ function comboFor(name){
   return {name,cards:[{r:name[0],s:s1},{r:name[1],s:s2}]};
 }
 function deal(){
+  if(S().deal) return S().deal();
   const set=S(), p=set.positions[rnd(set.positions.length)];
   const c=Math.random()<0.4?randomCombo():comboFor(set.edge[p][rnd(set.edge[p].length)]);
   return {pos:p,...c};
@@ -496,7 +569,7 @@ async function saveHist(m){
 function storeNote(){return (LS||window.storage)?'':'<p class="empty">Scores are kept while this page stays open. Add the app to your Home Screen from its web address to keep them.</p>'}
 
 /* ---- page switch: two groups, each with its own pages ---- */
-const GROUPS={look:[['lookup','Folded to you'],['vsr','Facing a raise']],train:[['open','Open'],['vsUTG','vs UTG'],['vsCO','vs CO'],['vsSB','vs SB'],['leaks','Leaks'],['drill','',1]],chart:[['ch-open','Opening'],['ch-vs','Facing a raise']]};
+const GROUPS={look:[['lookup','Folded to you'],['vsr','vs raise'],['vs3l','vs 3-bet']],train:[['open','Open'],['vsUTG','vs UTG'],['vsCO','vs CO'],['vsSB','vs SB'],['vs3','vs 3-bet'],['leaks','Leaks'],['drill','',1]],chart:[['ch-open','Opening'],['ch-vs','vs raise'],['ch-3b','vs 3-bet']]};
 const lastPage={look:'lookup',train:'open',chart:'ch-open'};
 let view='lookup', timer=null, resetArmed=false;
 $('tabs').onclick=e=>{const b=e.target.closest('button');if(b)showTab(lastPage[b.dataset.g])};
@@ -507,16 +580,16 @@ function showTab(v){
   const g=Object.keys(GROUPS).find(k=>GROUPS[k].some(x=>x[0]===v)); lastPage[g]=v;
   document.querySelectorAll('#tabs button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.g===g));
   $('sub').innerHTML=GROUPS[g].filter(x=>!x[2]).map(([k,l])=>`<button data-v="${k}" aria-pressed="${k===v||(k==='leaks'&&v==='drill')}">${l}</button>`).join('');
-  if(v==='lookup'||v==='vsr'){renderLook();show(v==='lookup'?'v-lookup':'v-vsr');return}
+  if(g==='look'){renderLook();show({lookup:'v-lookup',vsr:'v-vsr',vs3l:'v-vs3'}[v]);return}
   if(v==='leaks'){renderLeaks();show('v-leaks');return}
-  if(g==='chart'){cKind=v==='ch-open'?'open':'vs';renderChart();show('v-chart');return}
+  if(g==='chart'){cKind=v==='ch-open'?'open':v==='ch-3b'?'3b':'vs';renderChart();show('v-chart');return}
   mode=v; resetArmed=false;
   const sess=sessions[mode];
   if(!sess){ if(v==='drill'){startSession();return} renderHome();show('v-home')}
   else if(sess.done){$('done-body').innerHTML=sess.doneHTML;show('v-done')}
   else{ if(sess.answered){sess.i++;sess.cur=null} drawDeal(); show('v-drill') }
 }
-function show(id){['v-lookup','v-vsr','v-chart','v-leaks','v-home','v-drill','v-done'].forEach(x=>$(x).hidden=x!==id)}
+function show(id){['v-lookup','v-vsr','v-vs3','v-chart','v-leaks','v-home','v-drill','v-done'].forEach(x=>$(x).hidden=x!==id)}
 
 /* ---- home ---- */
 function renderHome(){
@@ -535,7 +608,7 @@ function renderHome(){
   hist.forEach(s=>set.positions.forEach(p=>{if(s.pos&&s.pos[p]){agg[p][0]+=s.pos[p][0];agg[p][1]+=s.pos[p][1]}}));
   html+='<div class="box"><h2>Accuracy by position, all rounds</h2>'+set.positions.map(p=>{
     const [c,t]=agg[p], v=t?Math.round(c/t*100):0;
-    return `<div class="acc"><b>${p}</b><div class="track"><i style="width:${v}%"></i></div><span>${t?v+'%':'none'}</span></div>`;
+    return `<div class="acc${set.posLabel?' wide':''}"><b>${set.posLabel?set.posLabel(p):p}</b><div class="track"><i style="width:${v}%"></i></div><span>${t?v+'%':'none'}</span></div>`;
   }).join('')+'</div>';
   html+=storeNote()+`<button class="quiet" id="reset">${resetArmed?'Tap again to delete all rounds':'Reset history'}</button>`;
   body.innerHTML=html;
@@ -579,11 +652,12 @@ function drawDeal(){
   $('pips').style.gridTemplateColumns=`repeat(${total},1fr)`;
   $('pips').innerHTML=Array.from({length:total},(_,i)=>`<i class="${i<sess.res.length?(sess.res[i].ok?'ok':'bad'):i===sess.i?'cur':''}"></i>`).join('');
   const yi=POS.indexOf(cur.pos);
+  const states=set.seats?set.seats(cur.pos):POS.map((_,i)=>[set.seat(i,yi)]);
   $('seats').innerHTML=POS.map((p,i)=>{
-    const st=set.seat(i,yi);
+    const [st,txt]=states[i];
     return st==='fold'?`<div class="seat out">${p}<small>fold</small></div>`
       :st==='you'?`<div class="seat you">${p}<small>you</small></div>`
-      :st==='raise'?`<div class="seat raiser">${p}<small>${set.open}</small></div>`
+      :st==='raise'?`<div class="seat raiser">${p}<small>${txt||set.open}</small></div>`
       :`<div class="seat">${p}</div>`;
   }).join('');
   const cards=$('cards'); cards.classList.remove('deal'); void cards.offsetWidth; cards.classList.add('deal');
@@ -627,7 +701,8 @@ $('d-next').onpointerdown=e=>{e.preventDefault();advance()};
 
 function finish(){
   const sess=sessions[mode], hist=hists[mode], drill=mode==='drill', n=sess.res.length;
-  const keyOf=r=>drill?spotLabel(r.s,r.pos):r.pos;
+  const keyOf=r=>drill?spotLabel(r.s,r.pos):r.pos, wideKey=drill||!!SETS[mode].posLabel;
+  const showKey=r=>drill?spotLabel(r.s,r.pos):SETS[mode].posLabel?SETS[mode].posLabel(r.pos):r.pos;
   const byPos={}; sess.res.forEach(r=>{const k=keyOf(r);byPos[k]=byPos[k]||[0,0];byPos[k][1]++;if(r.ok)byPos[k][0]++});
   const prev=hist[hist.length-1];
   hist.push({t:Date.now(),s:sess.score,n,pos:byPos}); saveHist(mode);
@@ -642,7 +717,7 @@ function finish(){
   }
   html+='<div class="box"><h2>'+(misses.length?`Missed hands (${misses.length})`:'No misses this round')+'</h2>'+misses.map(r=>{
     const set=SETS[r.s], mixed=Math.max(r.f.r,r.f.c,r.f.f)<97;
-    return `<div class="miss${drill?' mrow':''}"><span>${keyOf(r)}</span><span class="h">${r.name}</span><span class="d">You: ${set.act(r.pos,r.pick)}<br>Answer: <b>${set.act(r.pos,r.best)}</b>${mixed?' ('+mixTextW(r.f,set.words)+')':''}</span></div>`;
+    return `<div class="miss${wideKey?' mrow':''}"><span>${showKey(r)}</span><span class="h">${r.name}</span><span class="d">You: ${set.act(r.pos,r.pick)}<br>Answer: <b>${set.act(r.pos,r.best)}</b>${mixed?' ('+mixTextW(r.f,set.words)+')':''}</span></div>`;
   }).join('')+'</div>';
   sess.doneHTML=html;
   $('done-body').innerHTML=html;
@@ -676,7 +751,7 @@ function buildDrillDeck(){
     const v=st.miss*Math.pow(.5,st.streak); if(v<.05) return;
     missed.add(k); add(k,v*3);
     const [s,p,h]=k.split('|'); const [i,j]=gridPos(h);
-    [[1,0],[-1,0],[0,1],[0,-1]].forEach(([di,dj])=>{const x=i+di,y=j+dj;if(x>=0&&y>=0&&x<13&&y<13) add(s+'|'+p+'|'+nameAt(x,y),v*.6)});
+    [[1,0],[-1,0],[0,1],[0,-1]].forEach(([di,dj])=>{const x=i+di,y=j+dj;if(x>=0&&y>=0&&x<13&&y<13&&(!SETS[s].inRange||SETS[s].inRange(p,nameAt(x,y)))) add(s+'|'+p+'|'+nameAt(x,y),v*.6)});
   });
   if(!missed.size) return [];
   [...spot.entries()].filter(([,sp])=>sp.m).sort((a,b)=>b[1].m/b[1].n-a[1].m/a[1].n).slice(0,3).forEach(([sk])=>{
@@ -697,7 +772,8 @@ function gridPos(h){
 }
 
 /* ================= charts ================= */
-let cKind='open', cPos='BTN', cR='UTG', cY='BB', cSel=null;
+let cKind='open', cPos='BTN', cR='UTG', cY='BB', c3='UTG-HJ', cSel=null;
+const OPEN3=[...new Set(Object.values(M3).map(m=>m.you))];
 function chartSpot(){
   if(cKind==='open'){
     const p=cPos;
@@ -705,49 +781,69 @@ function chartSpot(){
       lab:{r:'Raise '+(p==='SB'?'3.5bb':'2.5bb'),c:'Limp',f:'Fold'}, words:{r:'raise',c:'limp'},
       title:`Folded to you on the <b>${p}</b>`};
   }
+  if(cKind==='3b'){
+    const m=M3[c3];
+    return {g:h=>f3(c3,h), est:false, partial:true,
+      lab:{r:'4-bet '+m.four,c:'Call',f:'Fold'}, words:{r:'4-bet',c:'call'},
+      title:`You open <b>${m.you}</b>, <b>${m.tb}</b> 3-bets to ${m.three}`};
+  }
   const spot=VS_ALL[cR][cY], sz=size3(cR,cY);
   return {g:h=>{const v=spot.h[h];return v?{r:v[0],c:v[1],f:Math.max(0,100-v[0]-v[1])}:{r:0,c:0,f:100}}, est:!!spot.e,
     lab:{r:'3-bet '+sz,c:'Call',f:'Fold'}, words:{r:'3-bet',c:'call'},
     title:`<b>${cR}</b> opens ${cR==='SB'?'3.5bb':'2.5bb'}, you're on the <b>${cY}</b>`};
 }
-function seatRow(label,list,attr,cur,disabled){
+function seatRow(label,list,attr,cur,disabled,raiseStyle){
   const cells=POS.map(p=>list.includes(p)
     ?`<button data-${attr}="${p}" aria-pressed="${p===cur}" ${disabled(p)?'disabled':''}>${p}</button>`:'<span></span>').join('');
-  return `<div class="prow"><span class="plab">${label}</span><div class="pos ${attr==='cr'?'rpos':''}">${cells}</div></div>`;
+  return `<div class="prow"><span class="plab">${label}</span><div class="pos ${raiseStyle?'rpos':''}">${cells}</div></div>`;
 }
+const tbFor=you=>Object.values(M3).filter(m=>m.you===you).map(m=>m.tb);
 function renderChart(){
   const sel=$('c-sel');
   if(cKind==='open') sel.innerHTML=seatRow('Seat',RFI,'cp',cPos,()=>false);
-  else sel.innerHTML=seatRow('Raiser',OPENERS,'cr',cR,p=>POS.indexOf(p)>=POS.indexOf(cY))+seatRow('You',POS.slice(1),'cy',cY,()=>false);
+  else if(cKind==='3b'){const m=M3[c3];
+    sel.innerHTML=seatRow('3-bet',POS.slice(1),'ct',m.tb,p=>!M3[m.you+'-'+p],true)+seatRow('You',OPENERS,'co',m.you,p=>!OPEN3.includes(p));}
+  else sel.innerHTML=seatRow('Raiser',OPENERS,'cr',cR,p=>POS.indexOf(p)>=POS.indexOf(cY),true)+seatRow('You',POS.slice(1),'cy',cY,()=>false);
   const s=chartSpot();
   $('c-title').innerHTML=s.title;
   $('c-est').innerHTML=s.est?'<span class="est">Estimated</span>':'Solver chart';
-  let html='', tot={r:0,c:0,f:0};
+  let html='', tot={r:0,c:0,f:0,n:0};
   for(let i=0;i<13;i++)for(let j=0;j<13;j++){
-    const h=nameAt(i,j), f=s.g(h), n=i===j?6:j>i?4:12, a=f.r, b=f.r+f.c;
-    tot.r+=n*f.r; tot.c+=n*f.c; tot.f+=n*f.f;
-    html+=`<button data-h="${h}" class="${h===cSel?'on':''}" style="background:linear-gradient(90deg,var(--raise) ${a}%,var(--call) ${a}% ${b}%,var(--fold) ${b}%)">${h}</button>`;
+    const h=nameAt(i,j), f=s.g(h), on=h===cSel?'on':'';
+    if(!f){html+=`<button data-h="${h}" class="out ${on}">${h}</button>`;continue}
+    const w=f.w===undefined?1:f.w, n=(i===j?6:j>i?4:12)*w, a=f.r, b=f.r+f.c;
+    tot.r+=n*f.r; tot.c+=n*f.c; tot.f+=n*f.f; tot.n+=n;
+    const grad=`linear-gradient(90deg,var(--raise) ${a}%,var(--call) ${a}% ${b}%,var(--fold) ${b}%)`;
+    // like GTO Wizard: bar height shows how often the hand is in your range
+    const bg=w<1?`${grad} bottom/100% ${Math.max(8,Math.round(w*100))}% no-repeat,#26313d`:grad;
+    html+=`<button data-h="${h}" class="${on}" style="background:${bg}">${h}</button>`;
   }
   $('c-grid').innerHTML=html;
-  const pct=x=>Math.round(x/1326)+'%';
+  const pct=x=>Math.round(x/tot.n)+'%';
   $('c-legend').innerHTML=`<span><i style="background:var(--raise)"></i>${s.lab.r} <b>${pct(tot.r)}</b></span>`
     +(tot.c?`<span><i style="background:var(--call)"></i>${s.lab.c} <b>${pct(tot.c)}</b></span>`:'')
-    +`<span><i style="background:var(--fold)"></i>Fold <b>${pct(tot.f)}</b></span>`;
+    +`<span><i style="background:var(--fold)"></i>Fold <b>${pct(tot.f)}</b></span>`
+    +(s.partial?`<span>Range <b>${Math.round(tot.n)} combos</b></span>`:'');
   renderDetail(s);
 }
 function renderDetail(s){
   s=s||chartSpot();
   if(!cSel){$('c-detail').innerHTML='<span class="empty">Tap any hand for its exact frequencies.</span>';return}
-  const f=s.g(cSel), best=primary(f);
+  const f=s.g(cSel);
+  if(!f){$('c-detail').innerHTML=`<div class="cd-top"><strong>${cSel}</strong><span class="cd-act">Not in your opening range</span></div>`;return}
+  const best=primary(f);
   const parts=[]; if(f.r) parts.push(f.r+'% '+s.words.r); if(f.c) parts.push(f.c+'% '+s.words.c); if(f.f) parts.push(f.f+'% fold');
+  const notes=[]; if(f.a) notes.push(`${f.a}% of the 4-bets are all-in`); if(f.w!==undefined&&f.w<1) notes.push(`in your opening range about ${Math.round(f.w*100)}% of the time`);
   $('c-detail').innerHTML=`<div class="cd-top"><strong>${cSel}</strong><span class="cd-act ${best}">${s.lab[best]}</span></div>
-    <div class="mix"><div class="bar"><i class="r" style="width:${f.r}%"></i><i class="c" style="width:${f.c}%"></i></div>${parts.join(', ')}</div>`;
+    <div class="mix"><div class="bar"><i class="r" style="width:${f.r}%"></i><i class="c" style="width:${f.c}%"></i></div>${parts.join(', ')}</div>${notes.length?`<small class="cd-note">${notes.join('. ')}.</small>`:''}`;
 }
 $('c-sel').onclick=e=>{
   const b=e.target.closest('button'); if(!b||b.disabled) return;
   if(b.dataset.cp) cPos=b.dataset.cp;
   if(b.dataset.cr) cR=b.dataset.cr;
   if(b.dataset.cy){cY=b.dataset.cy; if(POS.indexOf(cR)>=POS.indexOf(cY)) cR=POS[POS.indexOf(cY)-1]}
+  if(b.dataset.co) c3=b.dataset.co+'-'+tbFor(b.dataset.co)[0];
+  if(b.dataset.ct) c3=M3[c3].you+'-'+b.dataset.ct;
   renderChart();
 };
 $('c-grid').onclick=e=>{
@@ -805,9 +901,10 @@ function handClass(h){
   if(s) return lo-hi<=2?'Suited connectors':'Other suited';
   return 'Other offsuit';
 }
-const spotLabel=(s,p)=>s==='open'?`${p} open`:`${p} vs ${SETS[s].raiser}`;
+const spotLabel=(s,p)=>SETS[s].label?SETS[s].label(p):s==='open'?`${p} open`:`${p} vs ${SETS[s].raiser}`;
 function openChart(s,p,h){
   if(!SETS[s]) return;
+  if(s==='vs3'){c3=p;cSel=h||null;showTab('ch-3b');return}
   if(s==='open'){cPos=p}else{cR=SETS[s].raiser;cY=p}
   cSel=h||null; showTab(s==='open'?'ch-open':'ch-vs');
 }
@@ -907,7 +1004,7 @@ $('leaks-body').onclick=e=>{
 /* ================= keyboard ================= */
 document.addEventListener('keydown',e=>{
   const k=e.key.toUpperCase();
-  if(!$('v-lookup').hidden||!$('v-vsr').hidden){
+  if(!$('v-lookup').hidden||!$('v-vsr').hidden||!$('v-vs3').hidden){
     if(e.key==='Enter'||k==='N'){e.preventDefault();nextHand();return}
     if(!$('v-vsr').hidden){const o={U:'UTG',H:'HJ',C:'CO',B:'BTN',S:'SB'}[k]; if(o){setRaiser(o);return}}
     if(k==='0'||k==='1'){pick('T');return}
